@@ -1,7 +1,7 @@
 {
-  "name": "Red_Dead_Theme_dark",
-  "description": "Custom theme created from Red Dead Theme",
-  "category": "Game",
+  "name": "Better Purple Dark",
+  "description": "Custom theme created from Red_Dead_Theme_dark",
+  "category": "Custom",
   "author": "User",
   "version": "1.0",
   "colors": {
@@ -532,5 +532,13 @@
     "splitter_show_grip": true,
     "panel_opacity": 95,
     "enable_animations": true
-  }
+  },
+  "panel_fill_dir": 5,
+  "panel_grad_dir": 2,
+  "panel_pattern_style": 1,
+  "panel_pattern_scale": 14,
+  "panel_effect_type": "pattern",
+  "button_style": "gradient_45",
+  "progressbar_style": "system",
+  "progressbar_height": 18
 }
