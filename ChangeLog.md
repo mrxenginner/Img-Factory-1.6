@@ -3370,3 +3370,23 @@ See `TODO.md` for planned features and fixes.
 - `apps/components/Col_Editor/depends/col_workshop_parser.py`
 - `apps/components/Model_Editor/depends/col_workshop_parser.py`
 
+
+---
+
+#### Path Workshop (May 2026)
+
+**New: apps/components/Path_Workshop/path_workshop.py Version 1**
+Three tabs covering all VC/SA text path formats:
+- Train Paths — train.dat + train2.dat (x,y,z,speed,flags per waypoint, loop terminator)
+- Flight Paths — flight.dat/2/3 (VC dodo AI routes, x,y,z,speed)
+- Static Paths — spath0.dat VC text format (x,y,z nodes terminated by END)
+
+PathMapCanvas: 2D overhead view with pan (middle/right drag), zoom (wheel), node drag.
+Direction arrows on path lines, fit-all [F], labels toggle, radar background loader.
+Waypoint panel: full XYZS field editor, add/del/move-up/move-down.
+smart_file_router updated: train*.dat, flight*.dat, spath0.dat → Path Workshop.
+
+**Files changed:**
+- `apps/components/Path_Workshop/path_workshop.py` (new)
+- `apps/methods/smart_file_router.py`
+

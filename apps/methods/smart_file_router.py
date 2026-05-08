@@ -17,6 +17,13 @@ import os
 
 # Map: lowercase filename → (editor_label, launcher_function_name)
 _ROUTE_MAP = {
+    # Path Workshop
+    "train.dat":     ("Path Workshop (Train)",   "_launch_path_workshop"),
+    "train2.dat":    ("Path Workshop (Train 2)", "_launch_path_workshop"),
+    "flight.dat":    ("Path Workshop (Flight)",  "_launch_path_workshop"),
+    "flight2.dat":   ("Path Workshop (Flight 2)","_launch_path_workshop"),
+    "flight3.dat":   ("Path Workshop (Flight 3)","_launch_path_workshop"),
+    "spath0.dat":    ("Path Workshop (Static)",  "_launch_path_workshop"),
     # Vehicle Workshop tabs
     "handling.cfg":  ("Vehicle Workshop (Handling)",   "_launch_vehicle_workshop"),
     "carcols.dat":   ("Vehicle Workshop (Car Colours)", "_launch_vehicle_workshop"),
@@ -60,7 +67,13 @@ def open_smart_editor(file_path: str, main_window=None) -> bool: #vers 1
     if entry and entry[1]:
         launcher = entry[1]
         try:
-            if launcher == "_launch_vehicle_workshop":
+            if launcher == "_launch_path_workshop":
+                from apps.components.Path_Workshop.path_workshop import open_path_workshop
+                open_path_workshop(main_window, path=file_path)
+                _log(main_window, f"Path Workshop: {os.path.basename(file_path)}")
+                return True
+
+            elif launcher == "_launch_vehicle_workshop":
                 from apps.components.Vehicle_Workshop.vehicle_workshop import open_vehicle_workshop
                 w = open_vehicle_workshop(main_window, path=file_path)
                 _log(main_window, f"Vehicle Workshop: {os.path.basename(file_path)}")
