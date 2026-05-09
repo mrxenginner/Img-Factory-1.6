@@ -1409,6 +1409,13 @@ class IMGFactoryGUILayout:
                 "border: 1px solid #555; border-radius: 3px; }")
             btn.setProperty("action-type", action_type)
             btn.setProperty("full_label", localized_label)
+            try:
+                if method_name in self.method_mappings:
+                    btn.clicked.connect(self.method_mappings[method_name])
+                else:
+                    btn.clicked.connect(lambda: self._safe_log(f"Method '{method_name}' not in method_mappings"))
+            except Exception as e:
+                print(f"Error connecting button '{label}': {e}")
             return btn
 
         from PyQt6.QtGui import QColor as _QC

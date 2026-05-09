@@ -93,8 +93,12 @@ class SettingsDialog(QDialog): #vers 4
         
         layout.addLayout(button_layout)
     
-    def _create_buttons_tab(self): #vers 4
+    def _create_buttons_tab(self): #vers 5
         """Create buttons settings tab"""
+        from PyQt6.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
@@ -210,8 +214,8 @@ class SettingsDialog(QDialog): #vers 4
         layout.addWidget(size_group)
         
         layout.addStretch()
-        
-        return widget
+        scroll.setWidget(widget)
+        return scroll
     
     def _create_gui_tab(self): #vers 4
         """Create GUI settings tab"""
