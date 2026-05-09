@@ -2965,7 +2965,7 @@ class DATBrowserWidget(QWidget): #vers 3
         mw = getattr(self, 'main_window', None)
         if mw and hasattr(mw, 'log_message'):
             mw.log_message(msg)
-        self._set_status(msg)
+        # _set_status not available on DATBrowserWidget
 
     #    Tree right-click — open source file in editor                      
 

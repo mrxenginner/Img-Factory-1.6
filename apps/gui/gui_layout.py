@@ -1403,8 +1403,10 @@ class IMGFactoryGUILayout:
             _btn_style = self.main_window.app_settings.current_settings.get('button_style', 'flat')
 
         if not use_pastel and _btn_style != 'flat':
-            # Theme buttons mode — let global stylesheet handle everything
-            btn.setStyleSheet("")
+            # Theme buttons mode — compact padding so 3 buttons fit in 200px panel
+            btn.setStyleSheet(
+                "QPushButton { padding: 2px 4px; font-weight: bold; "
+                "border: 1px solid #555; border-radius: 3px; }")
             btn.setProperty("action-type", action_type)
             btn.setProperty("full_label", localized_label)
             return btn

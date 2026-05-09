@@ -7188,19 +7188,24 @@ class IMGFactory(QMainWindow):
         super().mouseMoveEvent(event)
 
 
-    def mouseReleaseEvent(self, event): #vers 4
+    def mouseReleaseEvent(self, event): #vers 5
         """Handle mouse release"""
         from PyQt6.QtCore import Qt
 
         if event.button() == Qt.MouseButton.LeftButton:
             is_frameless = bool(self.windowFlags() & Qt.WindowType.FramelessWindowHint)
+            was_resizing = False
             if is_frameless:
+                was_resizing = bool(getattr(self.gui_layout, 'resizing', False))
                 if hasattr(self.gui_layout, 'resizing'):
                     self.gui_layout.resizing = False
                 if hasattr(self.gui_layout, 'resize_corner'):
                     self.gui_layout.resize_corner = None
                 self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
+            if was_resizing:
+                event.accept()
+            else:
+                super().mouseReleaseEvent(event)
         else:
             super().mouseReleaseEvent(event)
 
