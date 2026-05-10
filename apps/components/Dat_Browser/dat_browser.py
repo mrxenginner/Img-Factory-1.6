@@ -2378,6 +2378,7 @@ class DATBrowserWidget(QWidget): #vers 3
         # ── Show / open ─────────────────────────────────────────────────────
         if is_ide_table:
             show_mw_act  = menu.addAction(f"⏎  Show in Model Workshop  [{model_name}]")
+            show_glv_act = menu.addAction(f"⏎  Show in Model Viewer (GL)  [{model_name}]")
             if txd_name and txd_name not in ('', '—', 'null'):
                 show_txd_act = menu.addAction(f"⏎  Show in TXD Workshop  [{txd_name}]")
             else:
@@ -2441,6 +2442,8 @@ class DATBrowserWidget(QWidget): #vers 3
         # Show / open
         if chosen == show_mw_act:
             self._open_model_workshop_for_row(table, row)
+        elif chosen == show_glv_act:
+            self._open_gl_viewer_for_row(table, row)
         elif show_txd_act and chosen == show_txd_act:
             self._open_txd_only_from_row(table, row)
         # DFF actions
@@ -2541,6 +2544,33 @@ class DATBrowserWidget(QWidget): #vers 3
             if txd_tmp and hasattr(workshop, '_load_txd_file'):
                 workshop._load_txd_file(txd_tmp)
         self._log(f"Model Workshop: {model_name}.dff")
+
+    def _open_gl_viewer_for_row(self, table, row): #vers 1
+        """Open DFF + TXD in GL Model Viewer from IDE row."""
+        model_name = table.item(row, 1).text().strip() if table.item(row, 1) else ""
+        txd_name   = table.item(row, 2).text().strip() if table.item(row, 2) else ""
+        found = self._get_row_xref(table, row)
+        dff_img = found.get("dff")
+        if not dff_img:
+            QMessageBox.warning(self, "Not found",
+                f"{model_name}.dff not found in any loaded IMG.")
+            return
+        dff_tmp = self._extract_entry_to_temp(dff_img, model_name + ".dff")
+        if not dff_tmp:
+            return
+        txd_tmp = None
+        txd_img = found.get("txd")
+        if txd_img:
+            txd_stem = (found.get("txd_name") or txd_name or model_name).lower()
+            txd_tmp = self._extract_entry_to_temp(txd_img, txd_stem + ".txd")
+        from apps.components.Model_Viewer.model_viewer import open_model_viewer
+        mw = self.main_window
+        win, viewer = open_model_viewer(mw, dff_tmp, txd_tmp)
+        if mw:
+            if not hasattr(mw, "_gl_viewer_wins"):
+                mw._gl_viewer_wins = []
+            mw._gl_viewer_wins.append(win)
+        self._log(f"Model Viewer: {model_name}.dff")
 
     def _export_dff_from_row(self, table, row): #vers 1
         """Export model's DFF from IMG to a user-chosen location."""

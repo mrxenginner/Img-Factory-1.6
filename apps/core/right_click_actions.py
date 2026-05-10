@@ -123,6 +123,9 @@ def show_context_menu(main_window, position): #vers 6
             a = QAction("Open in Model Workshop", menu_parent)
             a.triggered.connect(lambda checked=False, r=row: show_dff_model_viewer(main_window, r))
             dff_menu.addAction(a)
+            a = QAction("Show in Model Viewer (GL)", menu_parent)
+            a.triggered.connect(lambda checked=False, r=row: show_dff_in_gl_viewer(main_window, r))
+            dff_menu.addAction(a)
             menu.addSeparator()
 
         elif entry_type == 'TXD':
@@ -718,6 +721,48 @@ def show_dff_model_viewer(main_window, row): #vers 2
         import traceback; traceback.print_exc()
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Model Workshop error: {e}")
+
+
+def show_dff_in_gl_viewer(main_window, row): #vers 1
+    """Extract DFF+TXD from IMG and open in OpenGL Model Viewer."""
+    try:
+        import os, tempfile
+        img = getattr(main_window, 'current_img', None)
+        if not img or not hasattr(img, 'entries'):
+            return
+        if not (0 <= row < len(img.entries)):
+            return
+        entry = img.entries[row]
+        if not entry.name.lower().endswith('.dff'):
+            return
+        data = img.read_entry_data(entry)
+        if not data:
+            return
+        tmp_dir = tempfile.mkdtemp()
+        dff_path = os.path.join(tmp_dir, entry.name)
+        with open(dff_path, 'wb') as f: f.write(data)
+        # Auto-find matching TXD in same IMG
+        txd_path = None
+        txd_stem = os.path.splitext(entry.name)[0].lower()
+        for e in img.entries:
+            if e.name.lower() == txd_stem + '.txd':
+                txd_data = img.read_entry_data(e)
+                if txd_data:
+                    txd_path = os.path.join(tmp_dir, e.name)
+                    with open(txd_path, 'wb') as f: f.write(txd_data)
+                break
+        from apps.components.Model_Viewer.model_viewer import open_model_viewer
+        win, viewer = open_model_viewer(main_window, dff_path, txd_path)
+        if hasattr(main_window, '_gl_viewer_wins'):
+            main_window._gl_viewer_wins.append(win)
+        else:
+            main_window._gl_viewer_wins = [win]
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Model Viewer: {entry.name}")
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Model Viewer error: {e}")
 
 
 def get_selected_entry_info(main_window, row): #vers 1

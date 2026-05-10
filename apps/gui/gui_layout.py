@@ -4111,6 +4111,16 @@ class IMGFactoryGUILayout:
             menu = QMenu(self.directory_files_list)
             file_ext = os.path.splitext(file_path)[1].lower()
 
+            #    Model Viewer (GL) for DFF files
+            if file_ext == '.dff':
+                mv_action = menu.addAction("Show in Model Viewer (GL)")
+                mv_action.triggered.connect(
+                    lambda _=False, p=file_path: self._open_file_in_gl_viewer(p))
+                mw_action = menu.addAction("Open in Model Workshop")
+                mw_action.triggered.connect(
+                    lambda _=False, p=file_path: self._open_file_in_model_workshop(p))
+                menu.addSeparator()
+
             #    COL Workshop                                              
             if file_ext == '.col':
                 open_action = menu.addAction("Open in COL Workshop")
@@ -4149,6 +4159,34 @@ class IMGFactoryGUILayout:
         except Exception as e:
             if hasattr(self, 'log_message'):
                 self.log_message(f"Context menu error: {str(e)}")
+
+    def _open_file_in_gl_viewer(self, file_path: str): #vers 1
+        """Open a DFF file in the OpenGL Model Viewer."""
+        try:
+            from apps.components.Model_Viewer.model_viewer import open_model_viewer
+            mw = getattr(self, 'main_window', None)
+            # Auto-find TXD alongside
+            txd_path = None
+            for ext in ('.txd', '.TXD'):
+                candidate = os.path.splitext(file_path)[0] + ext
+                if os.path.isfile(candidate):
+                    txd_path = candidate; break
+            win, viewer = open_model_viewer(mw, file_path, txd_path)
+            if mw:
+                if not hasattr(mw, '_gl_viewer_wins'):
+                    mw._gl_viewer_wins = []
+                mw._gl_viewer_wins.append(win)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+
+    def _open_file_in_model_workshop(self, file_path: str): #vers 1
+        """Open a DFF file in the Model Workshop."""
+        try:
+            mw = getattr(self, 'main_window', None)
+            from apps.gui.gui_layout import open_dff_in_model_workshop
+            open_dff_in_model_workshop(mw, file_path)
+        except Exception as e:
+            import traceback; traceback.print_exc()
 
     def _open_file_in_col_workshop(self, file_path): #vers 1
         """Open a COL file in COL Workshop"""
