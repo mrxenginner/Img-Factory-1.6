@@ -2277,7 +2277,7 @@ class IMGFactoryGUILayout:
         self.filter_input.textChanged.connect(self._apply_table_filter)
         self.filter_input.returnPressed.connect(self._filter_next_match)
         from PyQt6.QtGui import QKeySequence as _QKS
-        from PyQt6.QtWidgets import QShortcut as _QSC
+        from PyQt6.QtGui import QShortcut as _QSC
         _esc = _QSC(_QKS("Escape"), self.filter_input)
         _esc.activated.connect(self._hide_filter_bar)
         _clear_btn = QPushButton("\u2715")
