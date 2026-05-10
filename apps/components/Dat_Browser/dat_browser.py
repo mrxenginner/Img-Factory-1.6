@@ -2565,7 +2565,9 @@ class DATBrowserWidget(QWidget): #vers 3
             txd_tmp = self._extract_entry_to_temp(txd_img, txd_stem + ".txd")
         from apps.components.Model_Viewer.model_viewer import open_model_viewer
         mw = self.main_window
-        win, viewer = open_model_viewer(mw, dff_tmp, txd_tmp)
+        # Pass current IMG so viewer shows all DFF entries
+        _img = getattr(mw, 'current_img', None)
+        win, viewer = open_model_viewer(mw, dff_tmp, txd_tmp, img=_img)
         if mw:
             if not hasattr(mw, "_gl_viewer_wins"):
                 mw._gl_viewer_wins = []

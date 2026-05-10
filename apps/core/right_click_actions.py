@@ -752,7 +752,8 @@ def show_dff_in_gl_viewer(main_window, row): #vers 1
                     with open(txd_path, 'wb') as f: f.write(txd_data)
                 break
         from apps.components.Model_Viewer.model_viewer import open_model_viewer
-        win, viewer = open_model_viewer(main_window, dff_path, txd_path)
+        _img = getattr(main_window, 'current_img', None)
+        win, viewer = open_model_viewer(main_window, dff_path, txd_path, img=_img)
         if hasattr(main_window, '_gl_viewer_wins'):
             main_window._gl_viewer_wins.append(win)
         else:
