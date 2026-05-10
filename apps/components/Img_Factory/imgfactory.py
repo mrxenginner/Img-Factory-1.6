@@ -1610,9 +1610,12 @@ class IMGFactory(QMainWindow):
             viewer.standalone_mode = False
             tab_layout.addWidget(viewer)
 
-            if dff_path: QTimer.singleShot(100, lambda: viewer.load_dff(dff_path))
-            if txd_path: QTimer.singleShot(200, lambda: viewer.load_txd(txd_path))
-            if img:      QTimer.singleShot(50,  lambda: viewer.load_img(img))
+            # Load after widget is shown and GL context initialized
+            def _deferred_load(v=viewer):
+                if dff_path: v.load_dff(dff_path)
+                if txd_path: QTimer.singleShot(200, lambda: v.load_txd(txd_path))
+                if img:      v.load_img(img)
+            QTimer.singleShot(150, _deferred_load)
 
             try:
                 from apps.methods.imgfactory_svg_icons import SVGIconFactory
