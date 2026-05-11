@@ -1,5 +1,15 @@
 #this belongs in root /ChangeLog.md - Version: 64
 
+## TODO — Theme-aware icons for all workshop tools
+
+Window/taskbar icons for all tools (Model Viewer, Radar Workshop, TXD Workshop,
+COL Workshop, Model Workshop, DP5 Workshop) should use `bg_panel` from the active
+theme so the icon colour updates when the user switches themes.
+
+Model Viewer already implements this pattern (`mesh_icon` colour = `bg_panel` from
+`app_settings.get_theme_colors()`, refreshed in `_refresh_icons()`). The same
+pattern should be applied to all other tools on next touch.
+
 ## May 2026 — Model Workshop bleed-through CONFIRMED FIXED
 
 The bleed-through in Model Workshop when docked inside IMG Factory is now
