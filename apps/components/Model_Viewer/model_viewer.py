@@ -1800,24 +1800,25 @@ class ModelViewer(ToolMenuMixin, QWidget):
                             except Exception: pass
                     except Exception: pass
 
-                # 1b. Other IMGs in same models/ dir (gta3.img, gta_int.img etc)
-                if miss and game_root:
-                    models_dir = os.path.join(game_root,'models')
-                    if os.path.isdir(models_dir):
-                        for img_fn in ('gta3.img','gta_int.img','cutscene.img','player.img'):
-                            img_path = os.path.join(models_dir, img_fn)
-                            if not os.path.isfile(img_path) or not miss: continue
+                # 1b. Current IMG (gta3.img) — look for vehicle*.txd entries
+                # SA stores vehiclegeneric256 etc inside gta3.img as separate TXDs
+                if miss and img and hasattr(img,'entries'):
+                    self.status.emit('Scanning gta3.img for vehicle textures...')
+                    txd_map={e.name.lower():e for e in img.entries if e.name.lower().endswith('.txd')}
+                    # Known SA shared vehicle TXD names inside gta3.img
+                    candidates=['vehiclecommon.txd','vehicle.txd','vehicles.txd',
+                                 'vehiclegeneric.txd','vehiclegrunge.txd',
+                                 'vehiclelights.txd','vehicletyres.txd']
+                    # Also try prefix match for any vehicle*.txd
+                    candidates += [n for n in txd_map if n.startswith('vehicle') and n not in candidates]
+                    tried=set()
+                    for cand in candidates:
+                        if not miss: break
+                        if cand in txd_map and cand not in tried:
+                            tried.add(cand)
                             try:
-                                # Read only the IMG index (fast), not all data
-                                from apps.methods.img_reader import IMGReader
-                                arc = IMGReader(img_path)
-                                if hasattr(arc,'open'): arc.open()
-                                txd_map={e.name.lower():e for e in arc.entries if e.name.lower().endswith('.txd')}
-                                # Look for vehicle*.txd entries that might have our textures
-                                for cand in ('vehiclecommon.txd','vehicle.txd','vehicles.txd'):
-                                    if cand in txd_map and miss:
-                                        data=arc.read_entry_data(txd_map[cand])
-                                        if data: _try_txd_data(data)
+                                data=img.read_entry_data(txd_map[cand])
+                                if data: _try_txd_data(data)
                             except Exception: pass
 
                 # 2. Current IMG — ONLY look up exact stem.txd entries, no full scan
