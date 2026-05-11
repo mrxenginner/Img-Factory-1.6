@@ -85,6 +85,11 @@ except ImportError:
     from apps.methods.gui_workshop import GUIWorkshop
 
 try:
+    from apps.methods.gl_viewport_mixin import GLViewportMixin
+except ImportError:
+    class GLViewportMixin: pass
+
+try:
     from apps.components.Handling_Editor.handling_editor import (
         HandlingParser, HandlingEntry, VC_FIELDS, HANDLING_FLAGS
     )
@@ -678,7 +683,7 @@ class CarModsTab(QWidget): #vers 1
 # Main workshop
 # ─────────────────────────────────────────────────────────────────────────────
 
-class VehicleWorkshop(GUIWorkshop): #vers 2
+class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
     App_name   = "Vehicle Workshop"
     App_build  = "Build 2"
     App_auth   = "X-Seti"
@@ -702,9 +707,156 @@ class VehicleWorkshop(GUIWorkshop): #vers 2
         self._tabs.addTab(self._tab_handling, "Handling")
         self._tabs.addTab(self._tab_carcols,  "Car Colours")
         self._tabs.addTab(self._tab_carmods,  "Car Mods (SA)")
+
+        # Vehicle Preview tab — OpenGL viewer
+        self._tab_preview = self._create_preview_tab()
+        self._tabs.addTab(self._tab_preview, "3D Preview")
+
         self.centre_layout.addWidget(self._tabs)
 
+    def _create_preview_tab(self): #vers 1
+        """Build the 3D Preview tab with DFFViewport and vehicle controls."""
+        from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+                                     QPushButton, QLabel, QComboBox, QSplitter)
+        from PyQt6.QtCore import Qt
+        tab = QWidget()
+        lay = QVBoxLayout(tab); lay.setContentsMargins(4,4,4,4); lay.setSpacing(4)
+
+        # Toolbar row
+        bar = QHBoxLayout()
+        self._vw_open_dff = QPushButton('Open DFF')
+        self._vw_open_txd = QPushButton('Open TXD')
+        self._vw_open_dff.clicked.connect(self._vw_pick_dff)
+        self._vw_open_txd.clicked.connect(self._vw_pick_txd)
+        bar.addWidget(self._vw_open_dff)
+        bar.addWidget(self._vw_open_txd)
+        bar.addSpacing(8)
+
+        # Render mode
+        from PyQt6.QtWidgets import QButtonGroup
+        self._vw_mode_grp = QButtonGroup(tab); self._vw_mode_grp.setExclusive(True)
+        for label, mode in [('Wire','wireframe'),('Solid','solid'),('Tex','textured')]:
+            b = QPushButton(label); b.setCheckable(True); b.setFixedHeight(26)
+            b.clicked.connect(lambda _=False, m=mode: self._vw_set_mode(m))
+            self._vw_mode_grp.addButton(b); bar.addWidget(b)
+            if mode == 'solid': b.setChecked(True)
+
+        bar.addSpacing(8)
+        # Assemble button
+        self._vw_assemble = QPushButton('All Parts')
+        self._vw_assemble.setCheckable(True)
+        self._vw_assemble.toggled.connect(self._vw_toggle_assembly)
+        bar.addWidget(self._vw_assemble)
+        bar.addStretch()
+
+        # Paint colour buttons
+        self._vw_paint1 = QPushButton('Primary')
+        self._vw_paint2 = QPushButton('Secondary')
+        self._vw_paint1.setFixedHeight(26); self._vw_paint2.setFixedHeight(26)
+        self._vw_paint1.clicked.connect(self._vw_pick_paint1)
+        self._vw_paint2.clicked.connect(self._vw_pick_paint2)
+        bar.addWidget(self._vw_paint1)
+        bar.addWidget(self._vw_paint2)
+        lay.addLayout(bar)
+
+        # GL Viewport
+        try:
+            from apps.components.Model_Viewer.model_viewer import DFFViewport
+            self._vw_viewport = DFFViewport()
+            app_settings = getattr(getattr(self,'main_window',None),'app_settings',None)
+            self._vw_viewport.app_settings = app_settings
+        except Exception:
+            self._vw_viewport = QLabel('OpenGL not available')
+        lay.addWidget(self._vw_viewport, 1)
+
+        # Status
+        self._vw_status = QLabel('Open a DFF to preview')
+        lay.addWidget(self._vw_status)
+        return tab
+
+    def _vw_set_mode(self, mode): #vers 1
+        vp = getattr(self,'_vw_viewport',None)
+        if vp and hasattr(vp,'set_render_mode'): vp.set_render_mode(mode)
+
+    def _vw_pick_dff(self): #vers 1
+        from PyQt6.QtWidgets import QFileDialog
+        path,_=QFileDialog.getOpenFileName(self,'Open DFF','','DFF (*.dff);;All (*)')
+        if not path: return
+        self._vw_load_dff(path)
+
+    def _vw_pick_txd(self): #vers 1
+        from PyQt6.QtWidgets import QFileDialog
+        path,_=QFileDialog.getOpenFileName(self,'Open TXD','','TXD (*.txd);;All (*)')
+        if not path: return
+        self._vw_load_txd(path)
+
+    def _vw_load_dff(self, path: str): #vers 1
+        try:
+            from apps.methods.dff_parser import load_dff
+            m = load_dff(path)
+            if not m: return
+            self._vw_model = m
+            vp = getattr(self,'_vw_viewport',None)
+            if vp and hasattr(vp,'load_geometry') and m.geometries:
+                g = m.geometries[0]; vp.load_geometry(g, g.materials)
+            self._vw_status.setText(f'{os.path.basename(path)} — {len(m.geometries)} geoms')
+            # Auto-load matching TXD
+            import os as _os
+            for ext in ('.txd','.TXD'):
+                txd=_os.path.splitext(path)[0]+ext
+                if _os.path.isfile(txd): self._vw_load_txd(txd); break
+        except Exception as e:
+            self._vw_status.setText(f'Error: {e}')
+
+    def _vw_load_txd(self, path: str): #vers 1
+        try:
+            from apps.methods.txd_parser import parse_txd
+            with open(path,'rb') as f: data=f.read()
+            textures=parse_txd(data)
+            vp=getattr(self,'_vw_viewport',None)
+            if vp and hasattr(vp,'_upload_textures') and textures:
+                vp._upload_textures(textures)
+                vp.update()
+        except Exception as e:
+            self._vw_status.setText(f'TXD error: {e}')
+
+    def _vw_toggle_assembly(self, enabled: bool): #vers 1
+        m = getattr(self,'_vw_model',None)
+        vp = getattr(self,'_vw_viewport',None)
+        if not m or not vp or not hasattr(vp,'set_assembly_mode'): return
+        vp.set_assembly_mode(enabled)
+        if enabled:
+            vp.load_all_geometries(m.geometries,[g.materials for g in m.geometries],
+                                   m.frames,m.atomics)
+        elif m.geometries:
+            vp.load_geometry(m.geometries[0],m.geometries[0].materials)
+
+    def _vw_pick_paint1(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        vp=getattr(self,'_vw_viewport',None)
+        if not vp or not hasattr(vp,'_paint1'): return
+        p=vp._paint1
+        col=QColorDialog.getColor(QColor(int(p[0]*255),int(p[1]*255),int(p[2]*255)),self)
+        if col.isValid():
+            vp._paint1=(col.redF(),col.greenF(),col.blueF())
+            self._vw_paint1.setStyleSheet(f'background:{col.name()}')
+            vp.update()
+
+    def _vw_pick_paint2(self): #vers 1
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+        vp=getattr(self,'_vw_viewport',None)
+        if not vp or not hasattr(vp,'_paint2'): return
+        p=vp._paint2
+        col=QColorDialog.getColor(QColor(int(p[0]*255),int(p[1]*255),int(p[2]*255)),self)
+        if col.isValid():
+            vp._paint2=(col.redF(),col.greenF(),col.blueF())
+            self._vw_paint2.setStyleSheet(f'background:{col.name()}')
+            vp.update()
+
     def _open_file(self, path=None): #vers 1
+
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Open Vehicle Data File", "",
