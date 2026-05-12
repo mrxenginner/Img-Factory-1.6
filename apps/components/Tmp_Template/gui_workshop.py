@@ -34,10 +34,10 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+#
 # SECTION 1 — GUI Core
 # Imports, optional deps, WorkshopSettings, _CornerOverlay
-# ═════════════════════════════════════════════════════════════════════════════
+#
 
 APPSETTINGS_AVAILABLE = False
 try:
@@ -233,9 +233,9 @@ class _CornerOverlay(QWidget):
         p.end()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+#
 # SECTION 2 — Toolbar: Menu, Settings UI, Info [i], Cog [⚙]
-# ═════════════════════════════════════════════════════════════════════════════
+#
 #
 # Toolbar layout (left → right):
 #   [Menu] [Settings]  <stretch>  <Title>  <stretch>
@@ -649,9 +649,9 @@ class _ToolbarMixin:
                     except Exception: pass
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+#
 # SECTION 3 — Layout: setup_ui, left panel, centre panel, right panel, status
-# ═════════════════════════════════════════════════════════════════════════════
+#
 
 class _LayoutMixin:
     """Panel creation and layout.
@@ -846,11 +846,11 @@ class _LayoutMixin:
             self._status_bar.setText(msg)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+#
 # SECTION 4 — Logic stubs
 # These are the methods your subclass overrides with actual app logic.
 # Everything above this line is pure UI — do not put app logic there.
-# ═════════════════════════════════════════════════════════════════════════════
+#
 
 class _LogicStubsMixin:
     """Stub methods for subclass override.
@@ -930,9 +930,9 @@ class _LogicStubsMixin:
             btn.setChecked(name == tool)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+#
 # GUIWorkshop — assembles all four sections
-# ═════════════════════════════════════════════════════════════════════════════
+#
 
 class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                   ToolMenuMixin, QWidget):
