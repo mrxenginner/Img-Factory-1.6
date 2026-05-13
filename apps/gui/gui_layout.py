@@ -455,7 +455,7 @@ class IMGFactoryGUILayout:
             'edit_dat_file': lambda: self._open_dat_browser(),
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
-            'edit_vehi_file': lambda: self._edit_veh_file(self.main_window),
+            'edit_vehi_file': lambda: self._open_vehicle_workshop(),
             'edit_peds_file': lambda: self._log_missing_method('edit_peds_file'),
             'edit_radar_map': lambda: getattr(self.main_window, 'open_radar_map', lambda: None)(),
             'open_dp5_workshop_docked': lambda: getattr(self.main_window, 'open_dp5_workshop_docked', lambda: None)(),
@@ -4368,6 +4368,33 @@ class IMGFactoryGUILayout:
                 self.main_window.log_message("Failed to open COL Workshop")
         except Exception as e:
             self.main_window.log_message(f"COL Workshop error: {str(e)}")
+
+    def _open_vehicle_workshop(self): #vers 1
+        """Open Vehicle Workshop tab with no file loaded."""
+        try:
+            from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+            mw = getattr(self, 'main_window', None)
+            if mw and hasattr(mw, 'main_tab_widget'):
+                tw = mw.main_tab_widget
+                for i in range(tw.count()):
+                    w = tw.widget(i)
+                    vw = w if isinstance(w, VehicleWorkshop) else None
+                    if vw is None and hasattr(w, 'findChild'):
+                        vw = w.findChild(VehicleWorkshop)
+                    if vw:
+                        tw.setCurrentIndex(i)
+                        return
+                from PyQt6.QtWidgets import QWidget, QVBoxLayout
+                container = QWidget()
+                lay = QVBoxLayout(container)
+                lay.setContentsMargins(0, 0, 0, 0)
+                vw = VehicleWorkshop(main_window=mw)
+                lay.addWidget(vw)
+                tw.addTab(container, "Vehicle Workshop")
+                tw.setCurrentWidget(container)
+        except Exception as e:
+            if hasattr(self, 'main_window') and hasattr(self.main_window, 'log_message'):
+                self.main_window.log_message(f"Vehicle Workshop error: {str(e)}")
 
     def _open_file_in_vehicle_workshop(self, file_path: str): #vers 2
         """Open handling/carcols/carmods in Vehicle Workshop.
