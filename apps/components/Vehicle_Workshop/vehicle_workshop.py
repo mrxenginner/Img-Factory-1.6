@@ -1041,19 +1041,37 @@ class _ToolbarMixin:
             import traceback; traceback.print_exc()
             self._set_status(f'TXD error: {e}')
 
-    def load_img(self, img): #vers 1
-        """Populate IMG list with DFF entries for quick selection."""
+    def load_img(self, img): #vers 2
+        """Populate IMG list with vehicle DFF entries only (from handling.cfg / IDE DB)."""
         self._current_img = img
         self._img_list.clear()
         if not img or not hasattr(img, 'entries'):
             return
+        # Build vehicle name filter from handling parser or mw.vehicle_names
+        vehicle_names = set()
+        try:
+            if hasattr(self, '_tab_handling') and hasattr(self._tab_handling, '_parser'):
+                p = self._tab_handling._parser
+                if p and p.entries:
+                    vehicle_names = {e.name.lower() for e in p.entries if e.name}
+        except Exception:
+            pass
+        if not vehicle_names:
+            mw = getattr(self, 'main_window', None)
+            vehicle_names = getattr(mw, 'vehicle_names', set())
         for entry in img.entries:
-            if entry.name.lower().endswith('.dff'):
-                item = QListWidgetItem(entry.name)
-                item.setData(Qt.ItemDataRole.UserRole, entry)
-                self._img_list.addItem(item)
+            if not entry.name.lower().endswith('.dff'):
+                continue
+            stem = entry.name.rsplit('.', 1)[0].lower()
+            # Only show if known vehicle, or no filter available (show all)
+            if vehicle_names and stem not in vehicle_names:
+                continue
+            item = QListWidgetItem(entry.name)
+            item.setData(Qt.ItemDataRole.UserRole, entry)
+            self._img_list.addItem(item)
         count = self._img_list.count()
-        self._set_status(f"IMG: {count} DFF entries loaded")
+        total = sum(1 for e in img.entries if e.name.lower().endswith('.dff'))
+        self._set_status(f"IMG: {count} vehicles ({total} DFFs total)")
 
     def _on_img_entry_dclicked(self, item): #vers 2
         """Double-click IMG entry — extract and load DFF + auto TXD with progress."""
@@ -2154,21 +2172,26 @@ class _LayoutMixin:
             self._geom_list.addItem(f"[{i}] {name}  {len(g.vertices)}v {len(g.triangles)}t")
 
 
-    def _on_geom_selected(self, row: int): #vers 3
+    def _on_geom_selected(self, row: int): #vers 4
         if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries): return
         self._current_geom = row
         m = self._dff_model
         g = m.geometries[row]
-        # Always use load_all_geometries for correct UV/frame hierarchy
+        # Use load_all_geometries for correct UV + frame hierarchy
         if m.frames and m.atomics:
             self.viewport.load_all_geometries(
                 m.geometries, [geom.materials for geom in m.geometries],
                 m.frames, m.atomics)
+            # Fallback: bad atomics produced empty result
+            if not getattr(self.viewport, '_all_geoms', None) and not self.viewport._vertices:
+                self.viewport.load_geometry(g, g.materials)
         else:
             self.viewport.load_geometry(g, g.materials)
         from PyQt6.QtCore import QTimer
-        if not self.viewport.isValid():
+        if hasattr(self.viewport, 'isValid') and not self.viewport.isValid():
             QTimer.singleShot(100, lambda: self.viewport.update())
+        else:
+            self.viewport.update()
         has_prelit = bool(g.colors)
         self._prelit_btn.setEnabled(has_prelit)
         self._info_lbl.setText(
