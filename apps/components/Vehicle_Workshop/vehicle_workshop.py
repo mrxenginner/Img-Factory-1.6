@@ -659,14 +659,52 @@ class _ToolbarMixin:
         finally:
             self._show_progress(False)
 
-    def _collect_needed_textures(self): #vers 1
-        """Return set of texture names the current DFF needs."""
+    def _strip_tex_suffix(self, name: str) -> str: #vers 1
+        """Strip GTA streaming suffix e.g. buildrt4_fehihwm -> buildrt4.
+        Pattern: trailing underscore + 4-8 lowercase letters only."""
+        return re.sub(r'_[a-z]{4,8}$', '', name)
+
+    def _get_ide_db(self): #vers 1
+        """Return IDEDatabase from mw.ide_db if loaded, else None."""
+        mw = getattr(self, 'main_window', None)
+        db = getattr(mw, 'ide_db', None)
+        if db and getattr(db, '_loaded', False) and db.model_map:
+            return db
+        db2 = getattr(getattr(mw, 'dat_browser', None), '_ide_db', None)
+        if db2 and db2.model_map:
+            return db2
+        return None
+
+    def _lookup_txd_for_stem(self, stem: str) -> str: #vers 1
+        """Return txd_name from IDE DB for model stem, or empty string."""
+        db = self._get_ide_db()
+        if not db:
+            return ''
+        obj = db.model_map.get(stem.lower())
+        if obj:
+            return obj.txd_name.lower()
+        # Try stripped stem
+        base = self._strip_tex_suffix(stem.lower())
+        if base != stem.lower():
+            obj = db.model_map.get(base)
+            if obj:
+                return obj.txd_name.lower()
+        return ''
+
+    def _collect_needed_textures(self): #vers 2
+        """Return set of texture names the current DFF needs.
+        Stores both full name and suffix-stripped base for fuzzy matching."""
         if not self._dff_model: return set()
         needed = set()
         for g in self._dff_model.geometries:
             for mat in g.materials:
                 name = (mat.texture_name or '').strip().lower()
-                if name: needed.add(name)
+                if not name:
+                    continue
+                needed.add(name)
+                base = self._strip_tex_suffix(name)
+                if base != name:
+                    needed.add(base)
         return needed
 
     def _upload_txd_additive(self, path: str): #vers 1
@@ -688,23 +726,30 @@ class _ToolbarMixin:
                 from OpenGL.GL import (glGenTextures, glBindTexture, GL_TEXTURE_2D,
                     glTexParameteri, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR,
                     GL_TEXTURE_MAG_FILTER, GL_LINEAR, GL_TEXTURE_WRAP_S,
-                    GL_TEXTURE_WRAP_T, GL_REPEAT, glTexImage2D, GL_RGBA,
-                    GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
+                    GL_TEXTURE_WRAP_T, GL_REPEAT, GL_CLAMP_TO_EDGE, GL_MIRRORED_REPEAT,
+                    glTexImage2D, GL_RGBA, GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
+                def _rw_wrap(rw):
+                    if rw == 2: return GL_CLAMP_TO_EDGE
+                    if rw == 3: return GL_MIRRORED_REPEAT
+                    return GL_REPEAT
                 for t in new_textures:
                     name = t['name'].lower()
                     rgba = t.get('rgba_data', b'')
                     w = t.get('width', 0); h = t.get('height', 0)
                     if not (rgba and w > 0 and h > 0): continue
+                    wrap_s = _rw_wrap(t.get('wrap_u', 1))
+                    wrap_t = _rw_wrap(t.get('wrap_v', 1))
                     gl_id = glGenTextures(1)
                     glBindTexture(GL_TEXTURE_2D, gl_id)
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_s)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_t)
                     try:
                         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba)
                         glGenerateMipmap(GL_TEXTURE_2D)
                         self.viewport._tex_ids[name] = gl_id
+                        self.viewport._tex_wrap[name] = (t.get('wrap_u',1), t.get('wrap_v',1))
                     except Exception:
                         glDeleteTextures(1,[gl_id])
                 self.viewport.doneCurrent()
@@ -761,9 +806,13 @@ class _ToolbarMixin:
         dff_dir    = os.path.dirname(self._current_dff_path) if self._current_dff_path else ''
         dff_stem   = os.path.splitext(os.path.basename(self._current_dff_path))[0].lower() if self._current_dff_path else ''
         img        = getattr(self, '_current_img', None)
+        ide_txd    = self._lookup_txd_for_stem(dff_stem)  # from IDE DB
+        _ide_db    = self._get_ide_db()
+        game_ver   = getattr(_ide_db, '_game', None) or getattr(_ide_db, 'game', 'vc')
 
         from PyQt6.QtCore import QThread, pyqtSignal as _sig
 
+        strip_suffix = self._strip_tex_suffix
         viewer_ref = self
 
         class _Worker(QThread):
@@ -774,44 +823,76 @@ class _ToolbarMixin:
                 from apps.methods.txd_parser import parse_txd
                 import tempfile
                 collected = []
+                
                 miss = set(missing)  # local copy
+                # Build suffix-stripped alias map: base_name -> full_name
+                # so we can match TXD textures against suffixed DFF names
+                alias = {}
+                for n in list(miss):
+                    base = strip_suffix(n)
+                    if base != n:
+                        alias[base] = n  # base -> suffixed
 
                 def _try_txd_data(data):
                     nonlocal miss
                     try:
                         textures = parse_txd(data)
-                        hits = [t for t in textures if t['name'].lower() in miss
-                                and t.get('rgba_data') and t['width']>0]
+                        hits = []
+                        for t in textures:
+                            tname = t['name'].lower()
+                            if not (t.get('rgba_data') and t['width'] > 0):
+                                continue
+                            if tname in miss:
+                                hits.append(t)
+                            elif tname in alias:
+                                # TXD has base name, DFF used suffixed name
+                                # Serve texture under the suffixed name the DFF expects
+                                t2 = dict(t); t2['name'] = alias[tname]
+                                hits.append(t2)
+                                hits.append(t)  # also store base for future lookups
                         if hits:
                             collected.extend(hits)
-                            miss -= {t['name'].lower() for t in hits}
+                            for t in hits:
+                                miss.discard(t['name'].lower())
                         return len(hits)
                     except Exception:
                         return 0
 
-                # 0. models/generic/ — always load vehicle.txd + wheels.txd
-                # wheels.txd loaded unconditionally (wheel geoms need it even if not in miss)
+                # 0. Shared TXDs from models/ — game-version aware
+                # GTA3/LC: models/generic.txd, models/Generic/wheels.DFF
+                # VC:      models/generic.txd, models/Generic/wheels.DFF
+                # SA:      models/generic/vehicle.txd, models/generic/wheels.txd, models/generic/wheels.DFF
                 if game_root:
-                    generic = os.path.join(game_root,'models','generic')
-                    for fn in ('vehicle.txd','wheels.txd','vehiclecommon.txd'):
-                        p = os.path.join(generic, fn)
-                        if os.path.isfile(p):
+                    m = os.path.join(game_root, 'models')
+                    if game_ver == 'sa':
+                        shared_txds = [
+                            os.path.join(m, 'generic', 'vehicle.txd'),
+                            os.path.join(m, 'generic', 'wheels.txd'),
+                        ]
+                        wheel_dffs = [
+                            os.path.join(m, 'generic', 'wheels.DFF'),
+                            os.path.join(m, 'generic', 'wheels.dff'),
+                        ]
+                    else:
+                        # GTA3 / VC / LC: generic.txd in models/, wheels.DFF in models/Generic/
+                        shared_txds = [
+                            os.path.join(m, 'generic.txd'),
+                            os.path.join(m, 'particle.txd'),
+                        ]
+                        wheel_dffs = [
+                            os.path.join(m, 'Generic', 'wheels.DFF'),
+                            os.path.join(m, 'Generic', 'wheels.dff'),
+                            os.path.join(m, 'generic', 'wheels.DFF'),
+                            os.path.join(m, 'generic', 'wheels.dff'),
+                        ]
+                    for p in shared_txds:
+                        if os.path.isfile(p) and miss:
                             try:
-                                with open(p,'rb') as f: raw=f.read()
-                                # For wheels.txd always collect all textures
-                                if 'wheels' in fn.lower():
-                                    from apps.methods.txd_parser import parse_txd
-                                    for t in parse_txd(raw):
-                                        if t.get('rgba_data') and t['width']>0:
-                                            collected.append(t)
-                                elif miss:
-                                    _try_txd_data(raw)
+                                with open(p, 'rb') as f: _try_txd_data(f.read())
                             except Exception: pass
-                    # Store wheels.DFF path for assembly use
-                    for wfn in ('wheels.DFF','wheels.dff'):
-                        wp=os.path.join(generic,wfn)
+                    for wp in wheel_dffs:
                         if os.path.isfile(wp):
-                            viewer_ref._wheels_model_path=wp; break
+                            viewer_ref._wheels_model_path = wp; break
                     if not miss:
                         if collected: self.found.emit(collected)
                         return
@@ -827,6 +908,18 @@ class _ToolbarMixin:
                                 with open(os.path.join(dff_dir,fn),'rb') as f: _try_txd_data(f.read())
                             except Exception: pass
                     except Exception: pass
+
+                # 1a. IDE DB lookup — exact TXD name from parsed IDE files
+                if miss and img and hasattr(img, 'entries') and ide_txd:
+                    txd_key = ide_txd if ide_txd.endswith('.txd') else ide_txd + '.txd'
+                    txd_map = {e.name.lower(): e for e in img.entries if e.name.lower().endswith('.txd')}
+                    entry = txd_map.get(txd_key)
+                    if entry:
+                        self.status.emit(f'IDE: loading {txd_key}...')
+                        try:
+                            data = img.read_entry_data(entry)
+                            if data: _try_txd_data(data)
+                        except Exception: pass
 
                 # 1b. Current IMG (gta3.img) — look for vehicle*.txd entries
                 # SA stores vehiclegeneric256 etc inside gta3.img as separate TXDs
@@ -910,7 +1003,6 @@ class _ToolbarMixin:
             self._tex_list.addItem(item)
         self._set_status(f'+{len(new)} shared textures loaded')
         self.viewport.update()
-
 
     def load_txd(self, path: str): #vers 2
         try:
@@ -2062,12 +2154,18 @@ class _LayoutMixin:
             self._geom_list.addItem(f"[{i}] {name}  {len(g.vertices)}v {len(g.triangles)}t")
 
 
-    def _on_geom_selected(self, row: int): #vers 2
+    def _on_geom_selected(self, row: int): #vers 3
         if not self._dff_model or row < 0 or row >= len(self._dff_model.geometries): return
         self._current_geom = row
-        g = self._dff_model.geometries[row]
-        self.viewport.load_geometry(g, g.materials)
-        # Ensure GL context is initialized before rendering
+        m = self._dff_model
+        g = m.geometries[row]
+        # Always use load_all_geometries for correct UV/frame hierarchy
+        if m.frames and m.atomics:
+            self.viewport.load_all_geometries(
+                m.geometries, [geom.materials for geom in m.geometries],
+                m.frames, m.atomics)
+        else:
+            self.viewport.load_geometry(g, g.materials)
         from PyQt6.QtCore import QTimer
         if not self.viewport.isValid():
             QTimer.singleShot(100, lambda: self.viewport.update())

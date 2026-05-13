@@ -847,9 +847,12 @@ def _open_dff_in_vehicle_workshop(main_window, row): #vers 2
         vdata = getattr(main_window, 'vehicle_data_paths', {})
 
         def _load_into(vw):
-            vw._open_file(dff_path)
+            # Load the IMG so the vehicle list is populated
+            vw.load_img(img)
+            # Load the specific DFF directly
+            vw._vw_load_dff(dff_path)
             if txd_path:
-                vw._open_file(txd_path)
+                vw._vw_load_txd(txd_path)
             for key in ('handling', 'carcols', 'carmods'):
                 p = vdata.get(key, '')
                 if p and os.path.isfile(p):
