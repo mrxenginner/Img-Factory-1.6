@@ -1654,7 +1654,7 @@ class IMGFactoryGUILayout:
             "Radar": "Radar", "Waterpro": "Waterpro", "Paint": "Paint",
             "IDE Edit": "IDE Edit","IPL Edit": "IPL Edit", "Objects": "Objects",
             "Peds": "Peds", "Ipf Edit": "Ipf Edit", "Paths": "Paths",
-            "Vehicle": "Vehicle", "Handling": "Handling", "Carcols": "Carcols"
+            "Vehicle": "Vehicle", "Handling": "Handling", "Carcols": "Carcols",
             "Zons Cull": "Zons Cull", "Weapons": "Weapons", "Weather": "Weather",
             "SCM code": "SCM Code", "GXT font": "GXT Edit", "Menu Edit": "Menu",
         }
