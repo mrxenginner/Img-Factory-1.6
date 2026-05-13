@@ -1839,32 +1839,31 @@ class ModelViewer(ToolMenuMixin, QWidget):
                         return 0
 
                 # 0. Shared TXDs from models/ — game-version aware
+                # GTA3/LC: models/generic.txd, models/Generic/wheels.DFF
+                # VC:      models/generic.txd, models/Generic/wheels.DFF
+                # SA:      models/generic/vehicle.txd, models/generic/wheels.txd, models/generic/wheels.DFF
                 if game_root:
                     m = os.path.join(game_root, 'models')
                     if game_ver == 'sa':
                         shared_txds = [
                             os.path.join(m, 'generic', 'vehicle.txd'),
                             os.path.join(m, 'generic', 'wheels.txd'),
-                            os.path.join(m, 'generic', 'vehiclecommon.txd'),
                         ]
                         wheel_dffs = [
                             os.path.join(m, 'generic', 'wheels.DFF'),
                             os.path.join(m, 'generic', 'wheels.dff'),
                         ]
                     else:
-                        # GTA3 / VC: shared TXDs sit directly in models/
-                        # wheels in models/textures/
+                        # GTA3 / VC / LC: generic.txd in models/, wheels.DFF in models/Generic/
                         shared_txds = [
                             os.path.join(m, 'generic.txd'),
                             os.path.join(m, 'particle.txd'),
-                            os.path.join(m, 'textures', 'wheels.TXD'),
-                            os.path.join(m, 'textures', 'wheels.txd'),
                         ]
                         wheel_dffs = [
+                            os.path.join(m, 'Generic', 'wheels.DFF'),
+                            os.path.join(m, 'Generic', 'wheels.dff'),
                             os.path.join(m, 'generic', 'wheels.DFF'),
                             os.path.join(m, 'generic', 'wheels.dff'),
-                            os.path.join(m, 'wheels.DFF'),
-                            os.path.join(m, 'wheels.dff'),
                         ]
                     for p in shared_txds:
                         if os.path.isfile(p) and miss:
