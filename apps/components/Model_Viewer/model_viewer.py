@@ -278,6 +278,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         self._materials: List  = []
         self._prelit:    List  = []   # list of (r,g,b,a) 0-255
         self._tex_ids:   Dict[str,int] = {}
+        self._tex_wrap:  Dict[str,tuple] = {}  # name -> (wrap_u, wrap_v)
 
         # Camera
         self._dist  = 10.0
@@ -547,7 +548,14 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
 
 
     # - textures
-    def _upload_textures(self, textures: list): #vers 1
+    def _rw_wrap_to_gl(self, rw: int) -> int: #vers 1
+        """Convert RW addressing mode to GL wrap constant.
+        0=NONE 1=WRAP 2=CLAMP 3=MIRROR"""
+        if rw == 2: return GL_CLAMP_TO_EDGE
+        if rw == 3: return GL_MIRRORED_REPEAT
+        return GL_REPEAT  # 0 or 1
+
+    def _upload_textures(self, textures: list): #vers 2
         if not OPENGL_AVAILABLE: return
         self.makeCurrent(); self.clear_textures()
         for tex in textures:
@@ -555,26 +563,32 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             rgba = tex.get('rgba_data', b'')
             w    = tex.get('width', 0); h = tex.get('height', 0)
             if not (name and rgba and w > 0 and h > 0): continue
+            wrap_u = tex.get('wrap_u', 1)
+            wrap_v = tex.get('wrap_v', 1)
+            gl_wrap_s = self._rw_wrap_to_gl(wrap_u)
+            gl_wrap_t = self._rw_wrap_to_gl(wrap_v)
             gl_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, gl_id)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, gl_wrap_s)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, gl_wrap_t)
             try:
                 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba)
                 glGenerateMipmap(GL_TEXTURE_2D)
                 self._tex_ids[name] = gl_id
+                self._tex_wrap[name] = (wrap_u, wrap_v)
             except Exception as e:
                 print(f"[ModelViewer] Tex upload fail '{name}': {e}")
                 glDeleteTextures(1,[gl_id])
         glBindTexture(GL_TEXTURE_2D, 0); self.doneCurrent()
 
-    def clear_textures(self): #vers 1
+    def clear_textures(self): #vers 2
         if OPENGL_AVAILABLE and self._tex_ids:
             try: glDeleteTextures(len(self._tex_ids), list(self._tex_ids.values()))
             except Exception: pass
         self._tex_ids.clear()
+        self._tex_wrap.clear()
 
 
     # - public API
@@ -1713,23 +1727,30 @@ class ModelViewer(ToolMenuMixin, QWidget):
                 from OpenGL.GL import (glGenTextures, glBindTexture, GL_TEXTURE_2D,
                     glTexParameteri, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR,
                     GL_TEXTURE_MAG_FILTER, GL_LINEAR, GL_TEXTURE_WRAP_S,
-                    GL_TEXTURE_WRAP_T, GL_REPEAT, glTexImage2D, GL_RGBA,
-                    GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
+                    GL_TEXTURE_WRAP_T, GL_REPEAT, GL_CLAMP_TO_EDGE, GL_MIRRORED_REPEAT,
+                    glTexImage2D, GL_RGBA, GL_UNSIGNED_BYTE, glGenerateMipmap, glDeleteTextures)
+                def _rw_wrap(rw):
+                    if rw == 2: return GL_CLAMP_TO_EDGE
+                    if rw == 3: return GL_MIRRORED_REPEAT
+                    return GL_REPEAT
                 for t in new_textures:
                     name = t['name'].lower()
                     rgba = t.get('rgba_data', b'')
                     w = t.get('width', 0); h = t.get('height', 0)
                     if not (rgba and w > 0 and h > 0): continue
+                    wrap_s = _rw_wrap(t.get('wrap_u', 1))
+                    wrap_t = _rw_wrap(t.get('wrap_v', 1))
                     gl_id = glGenTextures(1)
                     glBindTexture(GL_TEXTURE_2D, gl_id)
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_s)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_t)
                     try:
                         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba)
                         glGenerateMipmap(GL_TEXTURE_2D)
                         self.viewport._tex_ids[name] = gl_id
+                        self.viewport._tex_wrap[name] = (t.get('wrap_u',1), t.get('wrap_v',1))
                     except Exception:
                         glDeleteTextures(1,[gl_id])
                 self.viewport.doneCurrent()

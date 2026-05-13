@@ -222,7 +222,14 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
 
         platform_id = struct.unpack_from('<I', data, pos)[0]
         pos += 4
-        pos += 4  # filter/wrap flags
+        # filter/wrap flags: uint8 filter_mode, uint8 wrap_v_u (v<<4|u), uint16 pad
+        _fw = struct.unpack_from('<4B', data, pos)
+        filter_mode = _fw[0]
+        wrap_u = _fw[1] & 0x0F
+        wrap_v = (_fw[1] >> 4) & 0x0F
+        if wrap_u == 0: wrap_u = 1
+        if wrap_v == 0: wrap_v = 1
+        pos += 4
 
         tex_name  = data[pos:pos+32].split(b'\x00')[0].decode('ascii','ignore').strip()
         pos += 32
@@ -338,14 +345,17 @@ def _parse_native_texture(data: bytes, base: int, _debug: bool = False) -> Optio
             return None
 
         return {
-            'name':      tex_name,
-            'mask':      mask_name,
-            'width':     w,
-            'height':    h,
-            'format':    fmt,
-            'rgba_data': rgba,
-            'mip_count': mip_count,
-            'platform':  platform_id,
+            'name':        tex_name,
+            'mask':        mask_name,
+            'width':       w,
+            'height':      h,
+            'format':      fmt,
+            'rgba_data':   rgba,
+            'mip_count':   mip_count,
+            'platform':    platform_id,
+            'filter_mode': filter_mode,
+            'wrap_u':      wrap_u,
+            'wrap_v':      wrap_v,
         }
     except Exception as e:
         print(f"txd_parser: _parse_native_texture error: {e}")
