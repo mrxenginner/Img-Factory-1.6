@@ -120,20 +120,20 @@ def show_context_menu(main_window, position): #vers 6
             a = QAction(icons.search_icon(color=icon_color), "Texture List", menu_parent)
             a.triggered.connect(lambda: show_dff_texture_list(main_window, row))
             dff_menu.addAction(a)
-            # Check if this DFF is a known vehicle (from loaded handling.cfg)
+            # Vehicle option when name matches known vehicle from IDE DB
             dff_stem = entry.name.rsplit('.', 1)[0].lower() if entry else ''
             vehicle_names = getattr(main_window, 'vehicle_names', set())
             if dff_stem and dff_stem in vehicle_names:
                 a = QAction("Open in Vehicle Workshop", menu_parent)
                 a.triggered.connect(lambda checked=False, r=row: _open_dff_in_vehicle_workshop(main_window, r))
                 dff_menu.addAction(a)
-            else:
-                a = QAction("Open in Model Workshop", menu_parent)
-                a.triggered.connect(lambda checked=False, r=row: show_dff_model_viewer(main_window, r))
-                dff_menu.addAction(a)
-                a = QAction("Show in Model Viewer (GL)", menu_parent)
-                a.triggered.connect(lambda checked=False, r=row: show_dff_in_gl_viewer(main_window, r))
-                dff_menu.addAction(a)
+            # Always available model tools
+            a = QAction("Open in Model Workshop", menu_parent)
+            a.triggered.connect(lambda checked=False, r=row: show_dff_model_viewer(main_window, r))
+            dff_menu.addAction(a)
+            a = QAction("Show in Model Viewer (GL)", menu_parent)
+            a.triggered.connect(lambda checked=False, r=row: show_dff_in_gl_viewer(main_window, r))
+            dff_menu.addAction(a)
             menu.addSeparator()
 
         elif entry_type == 'TXD':
@@ -173,6 +173,11 @@ def show_context_menu(main_window, position): #vers 6
             a = QAction(icons.edit_icon(color=icon_color), "Edit File", menu_parent)
             a.triggered.connect(lambda: edit_ide_file(main_window, row))
             ide_menu.addAction(a)
+            # Open Vehicle Workshop if vehicle data is cached
+            if getattr(main_window, 'vehicle_data_paths', None):
+                a = QAction("Open in Vehicle Workshop", menu_parent)
+                a.triggered.connect(lambda: _open_vehicle_workshop_with_data(main_window))
+                ide_menu.addAction(a)
             menu.addSeparator()
 
         #    2. EXTRACT / EXPORT                                        
@@ -772,6 +777,40 @@ def show_dff_in_gl_viewer(main_window, row): #vers 1
         import traceback; traceback.print_exc()
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Model Viewer error: {e}")
+
+
+def _open_vehicle_workshop_with_data(main_window): #vers 1
+    """Open Vehicle Workshop and load cached handling/carcols paths."""
+    try:
+        paths = getattr(main_window, 'vehicle_data_paths', {})
+        gui = getattr(main_window, 'gui_layout', None)
+        if not gui or not hasattr(gui, '_open_vehicle_workshop'):
+            if hasattr(main_window, 'log_message'):
+                main_window.log_message("Vehicle Workshop not available")
+            return
+        gui._open_vehicle_workshop()
+        # Load data files into the newly opened workshop
+        from PyQt6.QtCore import QTimer
+        def _load_files():
+            mw = main_window
+            if not hasattr(mw, 'main_tab_widget'): return
+            tw = mw.main_tab_widget
+            from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+            for i in range(tw.count()):
+                w = tw.widget(i)
+                vw = w if isinstance(w, VehicleWorkshop) else None
+                if vw is None and hasattr(w, 'findChild'):
+                    vw = w.findChild(VehicleWorkshop)
+                if vw:
+                    for key in ('handling', 'carcols', 'carmods'):
+                        p = paths.get(key, '')
+                        if p:
+                            vw._open_file(p)
+                    return
+        QTimer.singleShot(300, _load_files)
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Vehicle Workshop error: {e}")
 
 
 def _open_dff_in_vehicle_workshop(main_window, row): #vers 1

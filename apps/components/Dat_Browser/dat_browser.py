@@ -1532,6 +1532,26 @@ class DATBrowserWidget(QWidget): #vers 3
                     }
                     existing = getattr(mw, 'vehicle_names', set())
                     mw.vehicle_names = existing | vehicle_names
+                    # Cache handling/carcols/carmods paths for Vehicle Workshop
+                    try:
+                        data_dir = os.path.join(game_root, 'data')
+                        vdata = {}
+                        for fname, key in [
+                            ('handling.cfg', 'handling'),
+                            ('carcols.dat',  'carcols'),
+                            ('carmods.dat',  'carmods'),
+                        ]:
+                            for variant in (fname, fname.upper(), fname.lower()):
+                                p = os.path.join(data_dir, variant)
+                                if os.path.isfile(p):
+                                    vdata[key] = p; break
+                        if vdata:
+                            mw.vehicle_data_paths = vdata
+                            if hasattr(mw, 'log_message'):
+                                found = ', '.join(vdata.keys())
+                                mw.log_message(f"Vehicle data cached: {found}")
+                    except Exception:
+                        pass
                 self._ide_db = ide_db   # also keep on widget
                 n = len(ide_db.model_map)
                 f = len(ide_db.source_files)
