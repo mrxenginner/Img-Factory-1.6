@@ -3389,20 +3389,48 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
             self._vw_paint2.setStyleSheet(f'background:{col.name()}')
             vp.update()
 
-    def _open_file(self, path=None): #vers 2
-        """Open button — shows dialog for DFF or data files based on active tab."""
+    def _open_file(self, path=None): #vers 3
+        """Open button — shows dialog when no path given.
+        When path is provided, loads directly without any dialog."""
+        if path is not None:
+            name = os.path.basename(path).lower()
+            if name.endswith('.dff'):
+                self._vw_load_dff(path)
+                self._tabs.setCurrentIndex(0)
+            elif name.endswith('.txd'):
+                self._vw_load_txd(path)
+                self._tabs.setCurrentIndex(0)
+            elif 'handling' in name:
+                if self._tab_handling.load_file(path):
+                    self._handling_path = path
+                    self._set_status(f"Handling: {os.path.basename(path)}")
+                    try:
+                        mw = getattr(self, 'main_window', None)
+                        if mw and hasattr(self._tab_handling, '_parser') and self._tab_handling._parser:
+                            names = {e.name.lower() for e in self._tab_handling._parser.entries if e.name}
+                            mw.vehicle_names = getattr(mw, 'vehicle_names', set()) | names
+                    except Exception:
+                        pass
+            elif 'carcols' in name:
+                if self._tab_carcols.load_file(path):
+                    self._carcols_path = path
+                    self._set_status(f"Car Colours: {os.path.basename(path)}")
+            elif 'carmods' in name:
+                if self._tab_carmods.load_file(path):
+                    self._carmods_path = path
+                    self._set_status(f"Car Mods: {os.path.basename(path)}")
+            return
+        # No path — show dialog based on active tab
         active_tab = self._tabs.currentIndex() if hasattr(self, '_tabs') else -1
         if active_tab == 0:
-            # 3D Preview tab — open DFF
             self._vw_pick_dff()
             return
-        if path is None:
-            path, _ = QFileDialog.getOpenFileName(
-                self, "Open Vehicle Data File", "",
-                "All supported (*.dff *.cfg *.dat *.txd);;"
-                "DFF Model (*.dff);;TXD Textures (*.txd);;"
-                "Handling (handling.cfg *.cfg);;Car Colours (carcols.dat *.dat);;"
-                "Car Mods (carmods.dat *.dat);;All files (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Vehicle Data File", "",
+            "All supported (*.dff *.cfg *.dat *.txd);;"
+            "DFF Model (*.dff);;TXD Textures (*.txd);;"
+            "Handling (handling.cfg *.cfg);;Car Colours (carcols.dat *.dat);;"
+            "Car Mods (carmods.dat *.dat);;All files (*)")
         if not path: return
         name = os.path.basename(path).lower()
         if name.endswith('.dff'):
