@@ -1525,6 +1525,13 @@ class DATBrowserWidget(QWidget): #vers 3
                 mw = self.main_window
                 if mw:
                     mw.ide_db = ide_db
+                    # Populate vehicle_names for right-click menu routing
+                    vehicle_names = {
+                        stem for stem, obj in ide_db.model_map.items()
+                        if getattr(obj, 'section', '') == 'cars'
+                    }
+                    existing = getattr(mw, 'vehicle_names', set())
+                    mw.vehicle_names = existing | vehicle_names
                 self._ide_db = ide_db   # also keep on widget
                 n = len(ide_db.model_map)
                 f = len(ide_db.source_files)

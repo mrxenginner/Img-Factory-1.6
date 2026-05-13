@@ -1196,9 +1196,10 @@ class COL3DViewport(QWidget): #vers 2
                             p.setPen(Qt.PenStyle.NoPen)
                             p.drawPolygon(QPolygonF(pts))
                             continue
-                        sx0, sy0 = _uvraw[0][0]*tw, _uvraw[0][1]*th
-                        sx1, sy1 = _uvraw[1][0]*tw, _uvraw[1][1]*th
-                        sx2, sy2 = _uvraw[2][0]*tw, _uvraw[2][1]*th
+                        # RW V=0 is bottom, QImage V=0 is top — flip V
+                        sx0, sy0 = _uvraw[0][0]*tw, (1.0-_uvraw[0][1])*th
+                        sx1, sy1 = _uvraw[1][0]*tw, (1.0-_uvraw[1][1])*th
+                        sx2, sy2 = _uvraw[2][0]*tw, (1.0-_uvraw[2][1])*th
                         dx0, dy0 = pts[0].x(), pts[0].y()
                         dx1, dy1 = pts[1].x(), pts[1].y()
                         dx2, dy2 = pts[2].x(), pts[2].y()
