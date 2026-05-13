@@ -7585,6 +7585,10 @@ class ModelWorkshop(GLViewportMixin, ToolMenuMixin, QWidget): #vers 3
         self.preview_widget._workshop_ref = self
         preview_row.addWidget(self.preview_widget, stretch=1)
         self.preview_row = preview_row
+        # GLViewportMixin compatibility — preview_widget IS the GL viewport
+        self._gl_viewport  = self.preview_widget
+        self._qp_viewport  = self.preview_widget
+        self._gl_mode      = True
 
         self._create_paint_bar()
 
