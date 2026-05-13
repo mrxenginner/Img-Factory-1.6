@@ -120,12 +120,20 @@ def show_context_menu(main_window, position): #vers 6
             a = QAction(icons.search_icon(color=icon_color), "Texture List", menu_parent)
             a.triggered.connect(lambda: show_dff_texture_list(main_window, row))
             dff_menu.addAction(a)
-            a = QAction("Open in Model Workshop", menu_parent)
-            a.triggered.connect(lambda checked=False, r=row: show_dff_model_viewer(main_window, r))
-            dff_menu.addAction(a)
-            a = QAction("Show in Model Viewer (GL)", menu_parent)
-            a.triggered.connect(lambda checked=False, r=row: show_dff_in_gl_viewer(main_window, r))
-            dff_menu.addAction(a)
+            # Check if this DFF is a known vehicle (from loaded handling.cfg)
+            dff_stem = entry.name.rsplit('.', 1)[0].lower() if entry else ''
+            vehicle_names = getattr(main_window, 'vehicle_names', set())
+            if dff_stem and dff_stem in vehicle_names:
+                a = QAction("Open in Vehicle Workshop", menu_parent)
+                a.triggered.connect(lambda checked=False, r=row: _open_dff_in_vehicle_workshop(main_window, r))
+                dff_menu.addAction(a)
+            else:
+                a = QAction("Open in Model Workshop", menu_parent)
+                a.triggered.connect(lambda checked=False, r=row: show_dff_model_viewer(main_window, r))
+                dff_menu.addAction(a)
+                a = QAction("Show in Model Viewer (GL)", menu_parent)
+                a.triggered.connect(lambda checked=False, r=row: show_dff_in_gl_viewer(main_window, r))
+                dff_menu.addAction(a)
             menu.addSeparator()
 
         elif entry_type == 'TXD':
@@ -764,6 +772,29 @@ def show_dff_in_gl_viewer(main_window, row): #vers 1
         import traceback; traceback.print_exc()
         if hasattr(main_window, 'log_message'):
             main_window.log_message(f"Model Viewer error: {e}")
+
+
+def _open_dff_in_vehicle_workshop(main_window, row): #vers 1
+    """Extract DFF from IMG and open in Vehicle Workshop."""
+    try:
+        import os, tempfile
+        img = getattr(main_window, 'current_img', None)
+        if not img or not hasattr(img, 'entries'): return
+        if not (0 <= row < len(img.entries)): return
+        entry = img.entries[row]
+        data = img.read_entry_data(entry)
+        if not data: return
+        tmp_dir = tempfile.mkdtemp()
+        dff_path = os.path.join(tmp_dir, entry.name)
+        with open(dff_path, 'wb') as f: f.write(data)
+        gui = getattr(main_window, 'gui_layout', None)
+        if gui and hasattr(gui, '_open_file_in_vehicle_workshop'):
+            gui._open_file_in_vehicle_workshop(dff_path)
+        elif hasattr(main_window, 'log_message'):
+            main_window.log_message("Vehicle Workshop not available")
+    except Exception as e:
+        if hasattr(main_window, 'log_message'):
+            main_window.log_message(f"Vehicle Workshop error: {e}")
 
 
 def get_selected_entry_info(main_window, row): #vers 1

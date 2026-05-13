@@ -4045,6 +4045,15 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
                 self._handling_path = path
                 self._tabs.setCurrentWidget(self._tab_handling)
                 self._set_status(f"Handling: {os.path.basename(path)}")
+                # Cache vehicle names on main_window for right-click menu
+                try:
+                    mw = getattr(self, 'main_window', None)
+                    if mw and hasattr(self._tab_handling, '_parser') and self._tab_handling._parser:
+                        names = {e.name.lower() for e in self._tab_handling._parser.entries if e.name}
+                        existing = getattr(mw, 'vehicle_names', set())
+                        mw.vehicle_names = existing | names
+                except Exception:
+                    pass
         elif "carcols" in name:
             if self._tab_carcols.load_file(path):
                 self._carcols_path = path
