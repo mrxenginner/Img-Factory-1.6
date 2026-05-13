@@ -4344,23 +4344,51 @@ class IMGFactoryGUILayout:
         except Exception as e:
             self.main_window.log_message(f"COL Workshop error: {str(e)}")
 
-    def _open_file_in_vehicle_workshop(self, file_path: str): #vers 1
-        """Open handling.cfg / carcols.dat in Vehicle Workshop."""
+    def _open_file_in_vehicle_workshop(self, file_path: str): #vers 2
+        """Open handling/carcols/carmods in Vehicle Workshop.
+        Auto-discovers companion files from same data/ directory."""""
         try:
             from apps.components.Vehicle_Workshop.vehicle_workshop import VehicleWorkshop
+            import os as _os
             mw = getattr(self, 'main_window', None)
-            # Check if Vehicle Workshop already open as a tab
+
+            # Find companion files in same directory
+            data_dir = _os.path.dirname(file_path)
+            def _find(name):
+                for f in _os.listdir(data_dir):
+                    if f.lower() == name.lower() and _os.path.isfile(_os.path.join(data_dir,f)):
+                        return _os.path.join(data_dir, f)
+                return None
+            companions = {
+                'handling': _find('handling.cfg'),
+                'carcols':  _find('carcols.dat'),
+                'carmods':  _find('carmods.dat'),
+            }
+
+            def _load_into(vw):
+                vw._open_file(file_path)
+                # Load companions that weren't the primary file
+                for key, path in companions.items():
+                    if path and path != file_path:
+                        vw._open_file(path)
+
+            # Reuse existing tab if open
             if mw and hasattr(mw, 'main_tab_widget'):
                 tw = mw.main_tab_widget
                 for i in range(tw.count()):
                     w = tw.widget(i)
-                    if isinstance(w, VehicleWorkshop):
-                        w._open_file(file_path)
+                    # Check direct widget or container child
+                    vw = w if isinstance(w, VehicleWorkshop) else None
+                    if vw is None and hasattr(w, 'findChild'):
+                        vw = w.findChild(VehicleWorkshop)
+                    if vw:
+                        _load_into(vw)
                         tw.setCurrentIndex(i)
                         return
-            # Open new Vehicle Workshop tab
+
+            # Open new tab
             vw = VehicleWorkshop(main_window=mw)
-            vw._open_file(file_path)
+            _load_into(vw)
             if mw and hasattr(mw, 'main_tab_widget'):
                 from PyQt6.QtWidgets import QWidget, QVBoxLayout
                 container = QWidget()
@@ -4369,6 +4397,8 @@ class IMGFactoryGUILayout:
                 container.file_type = 'WORKSHOP'
                 idx = mw.main_tab_widget.addTab(container, 'Vehicle Workshop')
                 mw.main_tab_widget.setCurrentIndex(idx)
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(100, lambda: mw._sync_img_taskbar_buttons(idx))
             else:
                 vw.resize(1200, 720); vw.show()
         except Exception as e:
