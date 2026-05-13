@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 2
+#this belongs in apps/components/Vehicle_Workshop/vehicle_workshop.py - Version: 5
 # X-Seti - May08 2026 - Img Factory 1.6 - Vehicle Workshop
 
 """
@@ -8,61 +8,16 @@ Tabs: Handling (handling.cfg) | Car Colours (carcols.dat) | Car Mods (carmods.da
 
 Parsers are self-contained. Handling parser imported from Handling_Editor.
 """
-
-##Methods list -
-# CarColour.__init__
-# CarColsParser.__init__
-# CarColsParser.load
-# CarColsParser.save
-# CarColsParser._detect_game
-# CarModEntry.__init__
-# CarModsParser.__init__
-# CarModsParser.load
-# CarModsParser.save
-# ColourSwatchGrid.__init__
-# ColourSwatchGrid.set_palette
-# ColourSwatchGrid.paintEvent
-# ColourSwatchGrid.mousePressEvent
-# HandlingTab.__init__
-# HandlingTab._build_ui
-# HandlingTab.load_file
-# HandlingTab.save_file
-# CarColoursTab.__init__
-# CarColoursTab._build_ui
-# CarColoursTab.load_file
-# CarColoursTab.save_file
-# CarColoursTab._on_vehicle_selected
-# CarColoursTab._populate_vehicle_colours
-# CarColoursTab._on_colour_index_clicked
-# CarColoursTab._add_vehicle
-# CarColoursTab._delete_vehicle
-# CarColoursTab._edit_selected_colour
-# CarColoursTab._add_pair
-# CarColoursTab._remove_pair
-# CarModsTab.__init__
-# CarModsTab._build_ui
-# CarModsTab.load_file
-# CarModsTab.save_file
-# CarModsTab._on_vehicle_selected
-# CarModsTab._populate_mods
-# CarModsTab._add_vehicle
-# CarModsTab._delete_vehicle
-# CarModsTab._add_mod
-# CarModsTab._remove_mod
-# VehicleWorkshop.__init__
-# VehicleWorkshop._build_menus_into_qmenu
-# VehicleWorkshop._open_file
-# VehicleWorkshop._save_file
-# VehicleWorkshop._save_as
-# VehicleWorkshop._open_specific
-# VehicleWorkshop.setup_ui
-# open_vehicle_workshop
-
-import math, sys, os, json
+import os, json, sys, requests, threading, struct, re, math, shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
+os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+os.environ.setdefault('QSG_RHI_BACKEND',  'opengl')
+
+#Adding Standalone
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = Path(current_dir).parents[2]
 if str(project_root) not in sys.path:
@@ -78,13 +33,13 @@ from PyQt6.QtWidgets import (
     QDialog, QFontComboBox, QDialogButtonBox, QTextEdit, QButtonGroup
 )
 
-from PyQt6.QtCore import Qt, QSize, QPoint, pyqtSignal, QTimer
-from PyQt6.QtGui import QColor, QFont, QPainter, QBrush, QPen, QIcon, QKeySequence, QShortcut, QPolygon
+from PyQt6.QtCore import Qt, QPoint, QSize, QThread, pyqtSignal, QTimer
 
+from PyQt6.QtGui import QAction, QBrush, QColor, QFont, QIcon, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QPolygon, QShortcut
 
 try:
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
-    from PyQt6.QtOpenGL import QOpenGLContext
+    #from PyQt6.QtOpenGL import QOpenGLContext
     from PyQt6.QtGui import QSurfaceFormat
     from OpenGL.GL  import *
     from OpenGL.GLU import *
@@ -100,7 +55,7 @@ except Exception:
     OPENGL_AVAILABLE   = False
     print("[Vehicle_Workshop] PyOpenGL not available — install python3-opengl")
 
-# ── Path setup ───────────────────────────────────────────────────────────────
+# - Path setup
 # depends/ = tool-specific only (handling_editor, svg_icons, tool_menu_mixin)
 # apps/ = shared (methods, utils, themes) — via project_root when in IMG Factory
 _depends = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'depends')
@@ -185,14 +140,61 @@ def _is_standalone():
 STANDALONE_MODE = _is_standalone()
 DEBUG_STANDALONE = False
 
-
 App_name   = "Vehicle Workshop"
 App_build  = "Build 2"
 App_auth   = "X-Seti"
 config_key = "vehicle_workshop"
 
+##Methods list -
+# CarColour.__init__
+# CarColsParser.__init__
+# CarColsParser.load
+# CarColsParser.save
+# CarColsParser._detect_game
+# CarModEntry.__init__
+# CarModsParser.__init__
+# CarModsParser.load
+# CarModsParser.save
+# ColourSwatchGrid.__init__
+# ColourSwatchGrid.set_palette
+# ColourSwatchGrid.paintEvent
+# ColourSwatchGrid.mousePressEvent
+# HandlingTab.__init__
+# HandlingTab._build_ui
+# HandlingTab.load_file
+# HandlingTab.save_file
+# CarColoursTab.__init__
+# CarColoursTab._build_ui
+# CarColoursTab.load_file
+# CarColoursTab.save_file
+# CarColoursTab._on_vehicle_selected
+# CarColoursTab._populate_vehicle_colours
+# CarColoursTab._on_colour_index_clicked
+# CarColoursTab._add_vehicle
+# CarColoursTab._delete_vehicle
+# CarColoursTab._edit_selected_colour
+# CarColoursTab._add_pair
+# CarColoursTab._remove_pair
+# CarModsTab.__init__
+# CarModsTab._build_ui
+# CarModsTab.load_file
+# CarModsTab.save_file
+# CarModsTab._on_vehicle_selected
+# CarModsTab._populate_mods
+# CarModsTab._add_vehicle
+# CarModsTab._delete_vehicle
+# CarModsTab._add_mod
+# CarModsTab._remove_mod
+# VehicleWorkshop.__init__
+# VehicleWorkshop._build_menus_into_qmenu
+# VehicleWorkshop._open_file
+# VehicleWorkshop._save_file
+# VehicleWorkshop._save_as
+# VehicleWorkshop._open_specific
+# VehicleWorkshop.setup_ui
+# open_vehicle_workshop
 
-#    WorkshopSettings
+# - WorkshopSettings
 class WorkshopSettings:
     """Per-app JSON settings.  Stored at ~/.config/imgfactory/{config_key}.json
     Same pattern as RADSettings / WATSettings across all workshops.
@@ -223,14 +225,14 @@ class WorkshopSettings:
         "recent_files": [],
     }
 
-    def __init__(self, config_key: str = "gui_workshop"):
+    def __init__(self, config_key: str = "gui_workshop"): #vers 1
         cfg = Path.home() / ".config" / "imgfactory"
         cfg.mkdir(parents=True, exist_ok=True)
         self._path = cfg / f"{config_key}.json"
         self._data = dict(self.DEFAULTS)
         self._load()
 
-    def _load(self):
+    def _load(self): #vers 1
         try:
             if self._path.exists():
                 self._data.update(
@@ -239,7 +241,7 @@ class WorkshopSettings:
         except Exception:
             pass
 
-    def save(self):
+    def save(self): #vers 1
         try: self._path.write_text(json.dumps(self._data, indent=2))
         except Exception: pass
 
@@ -247,17 +249,17 @@ class WorkshopSettings:
         return self._data.get(
             key, default if default is not None else self.DEFAULTS.get(key))
 
-    def set(self, key, value):
+    def set(self, key, value): #vers 1
         if key in self.DEFAULTS:
             self._data[key] = value
 
-    def add_recent(self, path: str):
+    def add_recent(self, path: str): #vers 1
         r = [p for p in self._data.get("recent_files", []) if p != str(path)]
         r.insert(0, str(path))
         self._data["recent_files"] = r[:self.MAX_RECENT]
         self.save()
 
-    def get_recent(self) -> list:
+    def get_recent(self) -> list: #vers 1
         return [p for p in self._data.get("recent_files", [])
                 if Path(p).exists()]
 
@@ -643,6 +645,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
             norms = [(rot[0]*n.x+rot[1]*n.y+rot[2]*n.z,
                       rot[3]*n.x+rot[4]*n.y+rot[5]*n.z,
                       rot[6]*n.x+rot[7]*n.y+rot[8]*n.z) for n in geom.normals] if geom.normals else []
+
             uvs   = [(u.u,u.v) for u in geom.uv_layers[0]] if geom.uv_layers else []
             tris  = [(t.v1,t.v2,t.v3,t.material_id) for t in geom.triangles]
             prelit= [(c.r,c.g,c.b,c.a) for c in geom.colors] if geom.colors else []
@@ -673,6 +676,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                     r2[6]*steer[0]+r2[7]*steer[3]+r2[8]*steer[6],
                                     r2[6]*steer[1]+r2[7]*steer[4]+r2[8]*steer[7],
                                     r2[6]*steer[2]+r2[7]*steer[5]+r2[8]*steer[8]]
+
                         if wheel_data:
                             wv,wn,wu,wt,wm,wp = wheel_data
                             # Transform wheel.DFF verts to this dummy's world position
@@ -688,6 +692,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                                  r2[6]*v.x+r2[7]*v.y+r2[8]*v.z+tz2) for v in geom.vertices]
                             if is_left: v2=[(-vx,vy,vz) for vx,vy,vz in v2]
                             self._all_geoms.append((v2,norms,uvs,tris,geom.materials,prelit))
+
         # VC/LC: place wheels.DFF at dummies even when no wheel atomic present
         placed_wheels=any('wheel' in fname.get(a.frame_index,'') and 'dummy' not in fname.get(a.frame_index,'') for a in atomics)
         if not placed_wheels:
@@ -700,6 +705,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
                         v2=[(r2[0]*vx+r2[1]*vy+r2[2]*vz+tx2,r2[3]*vx+r2[4]*vy+r2[5]*vz+ty2,r2[6]*vx+r2[7]*vy+r2[8]*vz+tz2) for vx,vy,vz in wv]
                         if fn2.startswith('wheel_l'): v2=[(-vx,vy,vz) for vx,vy,vz in v2]
                         self._all_geoms.append((v2,wn,wu,wt,wm,wp))
+
         all_pts=[p for g in self._all_geoms for p in g[0]]
         if all_pts:
             xs=[p[0] for p in all_pts]; ys=[p[1] for p in all_pts]
@@ -738,7 +744,7 @@ class DFFViewport(QOpenGLWidget if OPENGL_AVAILABLE else QWidget):
         return r,tx,ty,tz
 
 
-    # ── Animation ─────────────────────────────────────────────────────────
+    # - Animation
 
     def set_animation(self, enabled: bool): #vers 1
         self._anim_enabled = enabled
@@ -915,7 +921,7 @@ class _CornerOverlay(QWidget):
     """
     SIZE = 20
 
-    def __init__(self, parent):
+    def __init__(self, parent): #vers 1
         super().__init__(parent)
         for attr in [Qt.WidgetAttribute.WA_TransparentForMouseEvents,
                      Qt.WidgetAttribute.WA_NoSystemBackground,
@@ -948,7 +954,7 @@ class _CornerOverlay(QWidget):
             return pal.color(pal.ColorRole.Mid)
         return pal.color(pal.ColorRole.WindowText)
 
-    def _update_mask(self):
+    def _update_mask(self): #vers 1
         from PyQt6.QtGui import QRegion
         s = self.SIZE; w, h = self.width(), self.height()
         region = QRegion()
@@ -961,18 +967,18 @@ class _CornerOverlay(QWidget):
             region = region.united(QRegion(QPolygon(pts)))
         self.setMask(region)
 
-    def update_state(self, hover_corner, app_settings):
+    def update_state(self, hover_corner, app_settings): #vers 1
         self._hover_corner = hover_corner
         self._app_settings = app_settings
         self.update()
 
-    def setGeometry(self, *a):
+    def setGeometry(self, *a): #vers 1
         super().setGeometry(*a); self._update_mask()
 
-    def resizeEvent(self, ev):
+    def resizeEvent(self, ev): #vers 1
         super().resizeEvent(ev); self._update_mask()
 
-    def paintEvent(self, ev):
+    def paintEvent(self, ev): #vers 1
         s = self.SIZE
         try:
             accent = QColor(
@@ -1004,7 +1010,7 @@ class _ToolbarMixin:
 
     #    Toolbar creation
 
-    def _create_toolbar(self):
+    def _create_toolbar(self): #vers 3
         self.toolbar = QFrame()
         self.toolbar.setFrameStyle(QFrame.Shape.StyledPanel)
         self.toolbar.setFixedHeight(self.toolbarheight)
@@ -1013,23 +1019,23 @@ class _ToolbarMixin:
         self.toolbar.setMouseTracking(True)
         self.titlebar = self.toolbar   # alias for drag detection
 
-        lo = QHBoxLayout(self.toolbar)
-        lo.setContentsMargins(5, 4, 5, 4)
-        lo.setSpacing(4)
+        toolbar = QHBoxLayout(self.toolbar)
+        toolbar.setContentsMargins(5, 4, 5, 4)
+        toolbar.setSpacing(4)
         ic = self._get_icon_color()
 
         # Helper: create a fixed-size icon button
         def _ibtn(icon_fn, tip, slot):
-            b = QPushButton()
+            btn = QPushButton()
             try:
-                b.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
-                b.setIconSize(QSize(20, 20))
+                btn.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
+                btn.setIconSize(QSize(20, 20))
             except Exception:
                 pass
-            b.setFixedSize(35, 35)
-            b.setToolTip(tip)
-            b.clicked.connect(slot)
-            return b
+            btn.setFixedSize(35, 35)
+            btn.setToolTip(tip)
+            btn.clicked.connect(slot)
+            return btn
 
         #    Left: [Menu] [Settings]
         self.menu_btn = QPushButton("Menu")
@@ -1039,7 +1045,7 @@ class _ToolbarMixin:
         self.menu_btn.setToolTip(
             "Show menu (dropdown or top bar — set in Settings)")
         self.menu_btn.clicked.connect(self._on_menu_btn_clicked)
-        lo.addWidget(self.menu_btn)
+        toolbar.addWidget(self.menu_btn)
 
         self.settings_btn = QPushButton()
         try:
@@ -1054,49 +1060,46 @@ class _ToolbarMixin:
         self.settings_btn.setToolTip(
             "Workshop settings — Fonts, Display, Menu, About")
         self.settings_btn.clicked.connect(self._show_workshop_settings)
-        lo.addWidget(self.settings_btn)
+        toolbar.addWidget(self.settings_btn)
 
-        lo.addSpacing(4)
-        lo.addStretch()
+        toolbar.addSpacing(4)
+        toolbar.addStretch()
 
         #    Centre: title
         self.title_label = QLabel(self.App_name)
         self.title_label.setFont(self.title_font)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.title_label.setObjectName("title_label")
-        lo.addWidget(self.title_label)
-
-        lo.addStretch()
-        lo.addSpacing(4)
+        toolbar.addWidget(self.title_label)
+        toolbar.addStretch()
+        toolbar.addSpacing(4)
 
         #    Right: action buttons
-        self.open_btn   = _ibtn("open_icon",   "Open  Ctrl+O",  self._open_file)
-        self.save_btn   = _ibtn("save_icon",   "Save  Ctrl+S",  self._save_file)
-        self.export_btn = _ibtn("export_icon", "Export",        self._export_file)
-        self.import_btn = _ibtn("import_icon", "Import",        self._import_file)
-        for b in (self.open_btn, self.save_btn,
+        self.open_btn = _ibtn("open_icon", "Open Ctrl+O", self._open_file) #TODO does not always work when switching tabs, should load the needed type for other tabs.
+        self.save_btn = _ibtn("save_icon", "Save Ctrl+S", self._save_file)
+        self.export_btn = _ibtn("export_icon", "Export", self._export_file)
+        self.import_btn = _ibtn("import_icon", "Import", self._import_file)
+        for btn in (self.open_btn, self.save_btn,
                   self.export_btn, self.import_btn):
-            lo.addWidget(b)
+            toolbar.addWidget(btn)
 
-        lo.addSpacing(6)
+        toolbar.addSpacing(6)
 
-        self.undo_btn = _ibtn("undo_icon", "Undo  Ctrl+Z", self._undo)
-        lo.addWidget(self.undo_btn)
-
-        lo.addSpacing(4)
+        self.undo_btn = _ibtn("undo_icon", "Undo Ctrl+Z", self._undo)
+        toolbar.addWidget(self.undo_btn)
+        toolbar.addSpacing(4)
 
         # [ℹ] Info — About this workshop
         self.info_btn = _ibtn("info_icon", "About / Info", self._show_about)
-        lo.addWidget(self.info_btn)
+        toolbar.addWidget(self.info_btn)
 
         # [⚙] Cog — Global AppSettings theme dialog
         self.properties_btn = _ibtn(
             "properties_icon",
             "Global Theme Settings  (AppSettings)",
             self._launch_theme_settings)
-        lo.addWidget(self.properties_btn)
-
-        lo.addSpacing(4)
+        toolbar.addWidget(self.properties_btn)
+        toolbar.addSpacing(4)
 
         # [_] [⬜] [✕] — Window controls (standalone only)
         if self.standalone_mode:
@@ -1106,14 +1109,14 @@ class _ToolbarMixin:
                                       self._toggle_maximize)
             self.close_btn    = _ibtn("close_icon",    "Close",
                                       self.close)
-            for b in (self.minimize_btn, self.maximize_btn, self.close_btn):
-                lo.addWidget(b)
+            for btn in (self.minimize_btn, self.maximize_btn, self.close_btn):
+                toolbar.addWidget(btn)
         else:
             self.dock_btn = QPushButton("D")
             self.dock_btn.setFixedSize(35, 35)
             self.dock_btn.setToolTip("Dock / Undock")
             self.dock_btn.clicked.connect(self.toggle_dock_mode)
-            lo.addWidget(self.dock_btn)
+            toolbar.addWidget(self.dock_btn)
 
         return self.toolbar
 
@@ -1653,7 +1656,7 @@ class _ToolbarMixin:
             pm.exec(self.cursor().pos())
 
 
-    def _show_dropdown_menu(self):
+    def _show_dropdown_menu(self): #vers 1
         """Pop up the workshop menus as a QMenu below the [Menu] button."""
         menu = QMenu(self)
         self._build_menus_into_qmenu(menu)
@@ -1661,12 +1664,12 @@ class _ToolbarMixin:
         pos = btn.mapToGlobal(btn.rect().bottomLeft()) if btn else self.cursor().pos()
         menu.exec(pos)
 
-    def _show_popup_menu(self):   # compat alias
+    def _show_popup_menu(self): #vers 1
         self._show_dropdown_menu()
 
     #    [ℹ] Info — About dialog
 
-    def _show_about(self):
+    def _show_about(self): #vers 1
         """[ℹ] button — show About / Info for this workshop."""
         author = getattr(self, "App_author",      "X-Seti")
         year   = getattr(self, "App_year",        "2026")
@@ -1694,7 +1697,7 @@ class _ToolbarMixin:
 
     #    [⚙] Cog — Global AppSettings theme dialog
 
-    def _launch_theme_settings(self):
+    def _launch_theme_settings(self): #vers 1
         """[⚙] Cog — opens the global AppSettings / SettingsDialog.
         Identical pattern to radar_workshop._launch_theme_settings.
         """
@@ -1716,7 +1719,7 @@ class _ToolbarMixin:
 
     #    [Settings] — Workshop-local settings dialog
 
-    def _show_workshop_settings(self):
+    def _show_workshop_settings(self): #vers 1
         """[Settings] button — workshop-local settings.
         Tabs: Fonts / Display / Menu / About
         Reads/writes WorkshopSettings (per-app JSON).
@@ -1730,7 +1733,7 @@ class _ToolbarMixin:
         except Exception:
             pass
 
-        lo  = QVBoxLayout(dlg)
+        showws  = QVBoxLayout(dlg)
         tabs = QTabWidget()
         ws  = self.WS
 
@@ -1859,13 +1862,13 @@ class _ToolbarMixin:
         tabs.addTab(vt, "Vehicle")
 
         #    Dialog buttons
-        lo.addWidget(tabs)
+        showws.addWidget(tabs)
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
-        lo.addWidget(btns)
+        showws.addWidget(btns)
 
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
@@ -1902,7 +1905,7 @@ class _ToolbarMixin:
 
     #    Theme helpers
 
-    def _get_icon_color(self) -> str:
+    def _get_icon_color(self) -> str: #vers 1
         """Returns text_primary from current theme."""
         if APPSETTINGS_AVAILABLE and self.app_settings:
             try:
@@ -1913,7 +1916,7 @@ class _ToolbarMixin:
         bg = self.palette().window().color()
         return "#e0e0e0" if bg.lightness() < 128 else "#202020"
 
-    def _get_accent_color(self) -> str:
+    def _get_accent_color(self) -> str: #vers 1
         """Returns accent_primary from current theme."""
         if APPSETTINGS_AVAILABLE and self.app_settings:
             try:
@@ -1923,7 +1926,7 @@ class _ToolbarMixin:
                 pass
         return "#4682FF"
 
-    def _apply_theme(self):
+    def _apply_theme(self): #vers 1
         """Apply QSS from AppSettings."""
         if self.app_settings:
             try:
@@ -1932,7 +1935,7 @@ class _ToolbarMixin:
             except Exception:
                 pass
 
-    def _refresh_icons(self):
+    def _refresh_icons(self): #vers 1
         """Called on theme change — re-apply theme and rebuild toolbar icons."""
         self._apply_theme()
         if hasattr(self, "_corner_overlay"):
@@ -2071,7 +2074,7 @@ class _LayoutMixin:
         for label,tip,cb,iname in [
                 ('Open DFF','Open DFF model',self._vw_pick_dff,'open'),
                 ('Open TXD','Open TXD textures',self._vw_pick_txd,'open')]:
-            b=QToolButton(); b.setFixedHeight(26); b.setFont(self.panel_font); b.setToolTip(tip)
+            b=QToolButton(); b.setFixedHeight(28); b.setFont(self.panel_font); b.setToolTip(tip)
             b.setText(label)
             try:
                 ico=getattr(SVGIconFactory,f'{iname}_icon',None)
@@ -2086,7 +2089,7 @@ class _LayoutMixin:
 
         return panel
 
-    def _create_left_panel_old(self):
+    def _create_left_panel_old(self): #vers 1
         """Left panel — list + Add/Remove + info label.
         Override to replace with your own content.
         """
@@ -2190,7 +2193,7 @@ class _LayoutMixin:
 
         def _btn(text, tip, cb, iname=None, checkable=False, checked=False): #Vers 1
             b = _QTB(); b.setFont(self.panel_font)
-            b.setToolTip(tip); b.setFixedHeight(26)
+            b.setToolTip(tip); b.setFixedHeight(28)
             b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             ico = _icon(iname)
             if ico:
@@ -2364,25 +2367,25 @@ class _LayoutMixin:
         ic = self._get_icon_color()
         BTN = 36
 
-        def _nb(icon_fn, tip, slot, checkable=False):
+        def _nb(icon_fn, tip, slot, checkable=False): #vers 1
             b = QToolButton(); b.setFixedSize(BTN, BTN)
             try: b.setIcon(getattr(SVGIconFactory, icon_fn)(20, ic))
             except Exception: b.setText(tip[:2])
             b.setToolTip(tip); b.setCheckable(checkable)
             b.clicked.connect(slot); return b
 
-        def _row(*btns):
+        def _row(*btns): #vers 1
             row = QHBoxLayout()
             row.setSpacing(2); row.setContentsMargins(0, 0, 0, 0)
             for b in btns: row.addWidget(b)
             if len(btns) == 1: row.addStretch()
             sl.addLayout(row)
 
-        def _sep():
+        def _sep(): #vers 1
             s = QFrame(); s.setFrameShape(QFrame.Shape.HLine)
             sl.addSpacing(2); sl.addWidget(s); sl.addSpacing(2)
 
-        def _tool(icon_fn, tip, name):
+        def _tool(icon_fn, tip, name): #vers 1
             b = _nb(icon_fn, tip,
                     lambda checked=False, t=name: self._set_active_tool(t),
                     checkable=True)
@@ -2722,10 +2725,10 @@ class _LogicStubsMixin:
     """
 
     #    ToolMenuMixin protocol
-    def get_menu_title(self) -> str:
+    def get_menu_title(self) -> str: #vers 1
         return self.App_name
 
-    def _build_menus_into_qmenu(self, pm):
+    def _build_menus_into_qmenu(self, pm): #vers 1
         """Override to populate File / Edit / View menus for your app."""
         fm = pm.addMenu("File")
         fm.addAction("Open…  Ctrl+O",  self._open_file)
@@ -2756,11 +2759,11 @@ class _LogicStubsMixin:
     #    File operations
     def _open_file(self, path=None):   pass   # override: load your format
     def _save_file(self):              pass   # override: save your format
-    def _export_file(self):
+    def _export_file(self): #vers 1
         QMessageBox.information(self, "Export", "Export not yet implemented.")
-    def _import_file(self):
+    def _import_file(self): #vers 1
         QMessageBox.information(self, "Import", "Import not yet implemented.")
-    def _clear_recent(self):
+    def _clear_recent(self): #vers 1
         self.WS._data["recent_files"] = []; self.WS.save()
         self._set_status("Recent files cleared")
 
@@ -2781,15 +2784,17 @@ class _LogicStubsMixin:
     def _on_add_item(self):
         self._item_list.addItem(
             QListWidgetItem(f"Item {self._item_list.count()}"))
-    def _on_remove_item(self):
+
+    def _on_remove_item(self): #vers 1
         row = self._item_list.currentRow()
         if row >= 0: self._item_list.takeItem(row)
 
     #    Toolbar actions
-    def _on_toolbar_action(self, action: str): pass  # rotate/flip/edit etc.
+    def _on_toolbar_action(self, action: str): #vers 1
+        pass  # rotate/flip/edit etc.
 
     #    Tool management
-    def _set_active_tool(self, tool: str):
+    def _set_active_tool(self, tool: str): #vers 1
         self._active_tool = tool
         for name, btn in self._draw_btns.items():
             btn.setChecked(name == tool)
@@ -2817,7 +2822,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
     window_closed   = pyqtSignal()
 
     #    Init
-    def __init__(self, parent=None, main_window=None):
+    def __init__(self, parent=None, main_window=None): #vers 1
         super().__init__(parent)
         self.main_window     = main_window
         self.standalone_mode = (main_window is None)
@@ -2886,7 +2891,7 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         self._setup_shortcuts()
         self._apply_theme()
 
-    def _load_fonts_from_settings(self):
+    def _load_fonts_from_settings(self): #vers 1
         ws = self.WS
         self.title_font   = QFont(ws.get("font_title_family",  "Arial"),
                                   ws.get("font_title_size",     14))
@@ -2898,15 +2903,15 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
                                   ws.get("font_info_size",       9))
         self.button_display_mode = ws.get("button_display_mode", "both")
 
-    def get_content_margins(self):
+    def get_content_margins(self): #vers 1
         return (self.contmergina, self.contmerginb,
                 self.contmerginc, self.contmergind)
 
-    def get_panel_margins(self):
+    def get_panel_margins(self): #vers 1
         return (self.panelmergina, self.panelmerginb,
                 self.panelmerginc, self.panelmergind)
 
-    def _setup_shortcuts(self):
+    def _setup_shortcuts(self): #vers 1
         for key, fn in [("Ctrl+O", self._open_file), ("Ctrl+S", self._save_file),
                         ("Ctrl+Z", self._undo), ("Ctrl+Y", self._redo),
                         ("Ctrl+Shift+Z", self._redo), ("Ctrl+0", self._fit),
@@ -3047,7 +3052,8 @@ class GUIWorkshop(_ToolbarMixin, _LayoutMixin, _LogicStubsMixin,
         else: self.showMaximized()
 
 
-    def toggle_dock_mode(self): pass  # override if dock support needed
+    def toggle_dock_mode(self): #vers 1
+        pass  # override if dock support needed
 
 
     def mouseReleaseEvent(self, event): #Vers 2
@@ -3356,7 +3362,7 @@ class HandlingTab(QWidget): #vers 1
                 ("Del", "Delete entry",    self._delete, "delete"),
                 ("Dup", "Duplicate entry", self._dup,    "duplicate")]:
             from PyQt6.QtWidgets import QToolButton
-            b = QToolButton(); b.setFixedHeight(24); b.setToolTip(tip)
+            b = QToolButton(); b.setFixedHeight(28); b.setToolTip(tip)
             b.setText(lbl)
             try:
                 ico = getattr(SVGIconFactory, f'{iname}_icon', None)
@@ -3370,6 +3376,7 @@ class HandlingTab(QWidget): #vers 1
             b.clicked.connect(fn); br.addWidget(b)
         ll.addLayout(br)
         sp.addWidget(left)
+
         # Centre
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
         ctr = QWidget(); scroll.setWidget(ctr)
@@ -3396,6 +3403,7 @@ class HandlingTab(QWidget): #vers 1
             self._field_widgets[fname] = w
             self._form.addRow(lbl, w)
         sp.addWidget(scroll)
+
         # Right
         right = QWidget(); rl = QVBoxLayout(right); rl.setContentsMargins(2,2,2,2)
         rl.addWidget(QLabel("Vehicle Stats"))
@@ -3526,14 +3534,14 @@ class CarColoursTab(QWidget): #vers 1
         br = QHBoxLayout()
         for lbl, tip, fn, iname in [("Add",'Add',self._add_vehicle,'add'),("Del",'Delete',self._delete_vehicle,'delete')]:
             from PyQt6.QtWidgets import QToolButton
-            b=QToolButton(); b.setFixedHeight(24); b.setToolTip(tip); b.setText(lbl)
+            b=QToolButton(); b.setFixedHeight(28); b.setToolTip(tip); b.setText(lbl)
             try:
                 ico=getattr(SVGIconFactory,f'{iname}_icon',None)
                 if ico: b.setIcon(ico(14,'#ffffff')); b.setIconSize(QSize(14,14)); b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             except Exception: pass
             b.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
 
-            b=QPushButton(lbl); b.setFixedHeight(24); b.clicked.connect(fn); br.addWidget(b)
+            b=QPushButton(lbl); b.setFixedHeight(26); b.clicked.connect(fn); br.addWidget(b)
         ll.addLayout(br)
         sp.addWidget(left)
 
@@ -3553,7 +3561,7 @@ class CarColoursTab(QWidget): #vers 1
         cl.addWidget(self._pairs)
         pr = QHBoxLayout()
         for lbl, fn in [("Add Pair",self._add_pair),("Remove Pair",self._remove_pair)]:
-            b=QPushButton(lbl); b.setFixedHeight(24); b.clicked.connect(fn); pr.addWidget(b)
+            b=QPushButton(lbl); b.setFixedHeight(28); b.clicked.connect(fn); pr.addWidget(b)
         cl.addLayout(pr)
         sp.addWidget(centre)
 
@@ -3671,14 +3679,14 @@ class CarModsTab(QWidget): #vers 1
         br = QHBoxLayout()
         for lbl, tip, fn, iname in [("Add",'Add',self._add_vehicle,'add'),("Del",'Delete',self._delete_vehicle,'delete')]:
             from PyQt6.QtWidgets import QToolButton
-            b=QToolButton(); b.setFixedHeight(24); b.setToolTip(tip); b.setText(lbl)
+            b=QToolButton(); b.setFixedHeight(28); b.setToolTip(tip); b.setText(lbl)
             try:
                 ico=getattr(SVGIconFactory,f'{iname}_icon',None)
                 if ico: b.setIcon(ico(14,'#ffffff')); b.setIconSize(QSize(14,14)); b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             except Exception: pass
             b.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Fixed)
 
-            b=QPushButton(lbl); b.setFixedHeight(24); b.clicked.connect(fn); br.addWidget(b)
+            b=QPushButton(lbl); b.setFixedHeight(28); b.clicked.connect(fn); br.addWidget(b)
         ll.addLayout(br); sp.addWidget(left)
         right = QWidget(); rl = QVBoxLayout(right); rl.setContentsMargins(4,4,4,4)
         rl.addWidget(QLabel("Mod Slots"))
@@ -3688,7 +3696,7 @@ class CarModsTab(QWidget): #vers 1
         mr = QHBoxLayout()
         self._new_mod = QLineEdit(); self._new_mod.setPlaceholderText("mod_model_name"); mr.addWidget(self._new_mod)
         for lbl, fn in [("Add",self._add_mod),("Remove",self._remove_mod)]:
-            b=QPushButton(lbl); b.setFixedHeight(24); b.clicked.connect(fn); mr.addWidget(b)
+            b=QPushButton(lbl); b.setFixedHeight(28); b.clicked.connect(fn); mr.addWidget(b)
         rl.addLayout(mr); sp.addWidget(right)
         sp.setSizes([250,600]); root.addWidget(sp)
 
@@ -3767,9 +3775,9 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         self._tab_handling = HandlingTab()
         self._tab_carcols  = CarColoursTab()
         self._tab_carmods  = CarModsTab()
-        self._tab_preview = self._create_preview_tab()
-        self._tabs.addTab(self._tab_preview, "3D Preview")
+        self._tab_preview = self._create_preview_tab() #TODO this seems bugged, does not show self.viewport
         self._tabs.setCurrentIndex(0)
+        self._tabs.addTab(self._tab_preview, "3D Preview")
         self._tabs.addTab(self._tab_handling, "Handling")
         self._tabs.addTab(self._tab_carcols,  "Car Colours")
         self._tabs.addTab(self._tab_carmods,  "Car Mods (SA)")
@@ -3799,8 +3807,8 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         lay.addWidget(self._vw_status)
         return tab
 
-    # Methods from model_viewer
 
+    # Methods from model_viewer
 
     def _show_progress(self, visible: bool): #vers 1
         if hasattr(self, '_progress'):
@@ -3811,7 +3819,9 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
 
     def _light_setup_dialog(self): #vers 2
         """Light direction, intensity and vehicle paint colour dialog."""
-        dlg = QDialog(self); dlg.setWindowTitle("Light & Paint Setup"); dlg.resize(360, 380)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Light & Paint Setup")
+        dlg.resize(360, 380)
         lay = QVBoxLayout(dlg)
         form = QFormLayout()
 
@@ -3920,8 +3930,11 @@ class VehicleWorkshop(GLViewportMixin, GUIWorkshop): #vers 3
         reset_btn.clicked.connect(_reset)
 
         btn_row = QHBoxLayout()
-        close_btn = QPushButton("Close"); close_btn.clicked.connect(dlg.accept)
-        btn_row.addWidget(reset_btn); btn_row.addStretch(); btn_row.addWidget(close_btn)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(reset_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
         dlg.exec()
 
@@ -4108,7 +4121,7 @@ def open_vehicle_workshop(main_window=None, path: str = None): #vers 1
     return w
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": #vers 1
     # Must set compat profile BEFORE QApplication
     try:
         from PyQt6.QtGui import QSurfaceFormat

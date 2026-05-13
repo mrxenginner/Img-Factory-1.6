@@ -270,6 +270,11 @@ def edit_col_file(main_window): #vers 4  # STUB: DFF file launcher pending
     except Exception as e:
         main_window.log_message(f"Error opening COL Workshop: {e}")
 
+def edit_veh_file(main_window): #vers 1
+    from apps.methods.gta_dat_parser import GTAGame as _G
+    if game == _G.SOL:
+        return [img_stems[s] for s in ('vehicles','gta3') if s in img_stems] or all_imgs
+    return [img_stems[s] for s in ('gta3',) if s in img_stems] or all_imgs
 
 def edit_dff_file(main_window): #vers 1
     """Open Model Workshop.
@@ -450,7 +455,7 @@ class IMGFactoryGUILayout:
             'edit_dat_file': lambda: self._open_dat_browser(),
             'edit_zones_cull': lambda: self._log_missing_method('edit_zones_cull'),
             'edit_weap_file': lambda: self._log_missing_method('edit_weap_file'),
-            'edit_vehi_file': lambda: self._log_missing_method('edit_vehi_file'),
+            'edit_vehi_file': lambda: self._edit_veh_file(self.main_window),
             'edit_peds_file': lambda: self._log_missing_method('edit_peds_file'),
             'edit_radar_map': lambda: getattr(self.main_window, 'open_radar_map', lambda: None)(),
             'open_dp5_workshop_docked': lambda: getattr(self.main_window, 'open_dp5_workshop_docked', lambda: None)(),
@@ -1668,8 +1673,7 @@ class IMGFactoryGUILayout:
         #    System UI top bar                                                 
         # Layout: [Settings] [RW Ref] | inline QMenuBar | <Taskbar> | [Undo] [Info] [Theme] [AI]
         # Only added in system UI mode — custom UI has its own titlebar.
-        _ui_mode = getattr(getattr(self.main_window, 'img_settings', None),
-                           'get', lambda k, d=None: d)('ui_mode', 'system')
+        _ui_mode = getattr(getattr(self.main_window, 'img_settings', None), 'get', lambda k, d=None: d)('ui_mode', 'system')
         if _ui_mode != 'custom':
             try:
                 from PyQt6.QtWidgets import (QPushButton, QHBoxLayout, QWidget as _QW,
